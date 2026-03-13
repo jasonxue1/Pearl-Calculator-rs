@@ -1,0 +1,11 @@
+[workspace]
+resolver = "3"
+members = ["pearl-calculator", "pearl-calculator-gui"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2024"
+description = "A Pearl Calculator for Minecraft"
+readme = "README.md"
+repository = "https://github.com/jasonxue1/Pearl-Calculator-rs"
+license = "MIT OR Apache-2.0"
