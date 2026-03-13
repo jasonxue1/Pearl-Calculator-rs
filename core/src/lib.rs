@@ -1,10 +1,6 @@
 use nalgebra::Vector2;
 
-use crate::{
-    config::Config,
-    convert::num_to_motion,
-    pearl::SimulationReport,
-};
+use crate::{config::Config, convert::num_to_motion, pearl::SimulationReport};
 
 /// num means tnt counts in (1,1) and (1,-1)
 pub mod config;

@@ -1,6 +1,7 @@
 mod output;
 use std::{fs, io, path::PathBuf};
 
+use crate::output::print_simulation_report;
 use clap::{Parser, Subcommand};
 use nalgebra::vector;
 use pearl_calculator::{
@@ -8,8 +9,6 @@ use pearl_calculator::{
     convert::{RB, rb_to_num},
     simulation,
 };
-
-use crate::output::print_simulation_report;
 
 #[derive(Parser)]
 struct Cli {
