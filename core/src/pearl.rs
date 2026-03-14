@@ -3,10 +3,10 @@ use std::fmt;
 use crate::{
     config::MotionPerTnt,
     convert::num_to_motion,
-    util::{ConfigNether, check_close, check_nether, generate},
+    util::{ConfigNether, MaxTnt, check_close, check_nether, generate},
 };
 use minecraft_mth as mth;
-use nalgebra::{Vector2, Vector3, matrix, vector};
+use nalgebra::{Matrix2, Vector2, Vector3, matrix, vector};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -59,7 +59,7 @@ pub struct SimulationReport {
 
 impl Pearl {
     pub fn tick(&mut self, teleport: Teleport) {
-        self.tick_without_rotation();
+        self.change_motion();
         self.lerp_rotation();
 
         match teleport {
@@ -73,7 +73,7 @@ impl Pearl {
         }
     }
 
-    pub fn tick_without_rotation(&mut self) {
+    pub fn change_motion(&mut self) {
         self.motion.y -= G;
         self.motion *= D;
     }
@@ -136,9 +136,10 @@ impl Pearl {
 
     pub fn calculation_nether(
         self,
-        max_num: Vector2<u64>,
+        max_tnt: MaxTnt,
         target_point: Vector2<i64>,
         motion_per_tnt: MotionPerTnt,
+        directions: &[Matrix2<i64>; 4],
         error: u64,
         max_time: u64,
     ) -> Vec<ConfigNether> {
@@ -148,14 +149,16 @@ impl Pearl {
         ];
 
         let mut result: Vec<ConfigNether> = Vec::new();
-        for num in generate(max_num) {
+        let nums = generate(max_tnt, directions);
+        for num in nums {
             let mut pearl = self;
             if !check_nether(num, target_point, error) {
                 continue;
             }
             pearl.motion += num_to_motion(num, motion_per_tnt);
             for t in 1..=max_time {
-                pearl.tick_without_rotation();
+                pearl.change_motion();
+                pearl.position += pearl.motion;
                 if pearl.is_close(target_point, error) {
                     result.push(ConfigNether { num, time: t });
                 }

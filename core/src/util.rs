@@ -1,5 +1,6 @@
 use itertools::iproduct;
-use nalgebra::{Vector2, Vector3, vector};
+use nalgebra::{Matrix2, Vector2, Vector3, vector};
+use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
 pub enum FtlConfig {
@@ -12,11 +13,21 @@ pub struct ConfigNether {
     pub time: u64,
 }
 
-pub fn generate(max: Vector2<u64>) -> impl Iterator<Item = Vector2<i64>> {
-    let max_x = max.x as i64;
-    let max_y = max.y as i64;
+#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+pub struct MaxTnt {
+    pub red: u64,
+    pub blue: u64,
+}
 
-    iproduct!(-max_x..=max_x, -max_y..=max_y).map(|(x, y)| vector![x, y])
+pub fn generate(
+    max_tnt: MaxTnt,
+    directions: &[Matrix2<i64>; 4],
+) -> impl Iterator<Item = Vector2<i64>> {
+    let max_red = max_tnt.red as i64;
+    let max_blue = max_tnt.blue as i64;
+
+    iproduct!(0..=max_red, 0..=max_blue, directions.iter())
+        .map(|(red, blue, direction_base)| direction_base * vector![red, blue])
 }
 
 /// num means in a(1,1) and b(1,-1)

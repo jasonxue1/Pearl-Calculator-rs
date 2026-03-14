@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     convert::num_to_motion,
     pearl::{Dimension, SimulationReport},
-    util::FtlConfig,
+    util::{FtlConfig, MaxTnt},
 };
 
 /// num means tnt counts in (1,1) and (1,-1)
@@ -27,7 +27,7 @@ pub fn simulation(
 
 pub fn calculation(
     config: &Config,
-    max_tnt_num: Vector2<u64>,
+    max_tnt: Option<MaxTnt>,
     target_point: Vector2<i64>,
     error: u64,
     max_time: u64,
@@ -35,15 +35,19 @@ pub fn calculation(
 ) -> Vec<FtlConfig> {
     let pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
+    let directions = &config.directions;
+    let max_tnt = max_tnt.unwrap_or(config.max_tnt);
     match dimension {
         Dimension::Nether => {
             let res = pearl.calculation_nether(
-                max_tnt_num,
+                max_tnt,
                 target_point,
                 motion_per_tnt,
+                directions,
                 error,
                 max_time,
             );
+
             res.iter().map(|&x| FtlConfig::Nether(x)).collect()
         }
         _ => {

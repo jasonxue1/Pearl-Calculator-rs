@@ -8,7 +8,7 @@ pub struct RB {
     pub direction: usize,
 }
 
-pub fn rb_to_num(rb: RB, directions: [Matrix2<i64>; 4]) -> Vector2<i64> {
+pub fn rb_to_num(rb: RB, directions: &[Matrix2<i64>; 4]) -> Vector2<i64> {
     let base = directions[rb.direction];
     base * rb.count
 }
@@ -65,7 +65,7 @@ mod tests {
             let rb = num_to_rb(num, directions);
             assert!(rb.count[0] >= 0);
             assert!(rb.count[1] >= 0);
-            assert_eq!(rb_to_num(rb, directions), num);
+            assert_eq!(rb_to_num(rb, &directions), num);
         }
     }
 

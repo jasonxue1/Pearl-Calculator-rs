@@ -3,7 +3,7 @@ use std::array::from_fn;
 use nalgebra::{Matrix2, Vector2};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::pearl::Pearl;
+use crate::{pearl::Pearl, util::MaxTnt};
 
 // direction
 // red1 red2
@@ -18,6 +18,7 @@ pub struct Config {
     pub directions: [Matrix2<i64>; 4],
     code: Code,
     pub motion_per_tnt: MotionPerTnt,
+    pub max_tnt: MaxTnt,
 }
 
 pub fn resolve_directions(directions: [Matrix2<i64>; 4]) -> [usize; 4] {
