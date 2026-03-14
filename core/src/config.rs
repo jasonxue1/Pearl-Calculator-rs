@@ -15,12 +15,12 @@ pub struct Config {
         deserialize_with = "deserialize_directions",
         serialize_with = "serialize_directions"
     )]
-    pub directions: [Matrix2<i32>; 4],
+    pub directions: [Matrix2<i64>; 4],
     code: Code,
     pub motion_per_tnt: MotionPerTnt,
 }
 
-pub fn resolve_directions(directions: [Matrix2<i32>; 4]) -> [usize; 4] {
+pub fn resolve_directions(directions: [Matrix2<i64>; 4]) -> [usize; 4] {
     let mut indices = [0; 4];
     let mut seen = [false; 4];
 
@@ -46,7 +46,7 @@ pub fn resolve_directions(directions: [Matrix2<i32>; 4]) -> [usize; 4] {
 
 fn deserialize_directions<'de, D: Deserializer<'de>>(
     deserializer: D,
-) -> Result<[Matrix2<i32>; 4], D::Error> {
+) -> Result<[Matrix2<i64>; 4], D::Error> {
     let defs = <[DirectionDef; 4]>::deserialize(deserializer)?;
     let result = defs.map(|d| Matrix2::from_columns(&[d.red, d.blue]));
     resolve_directions(result);
@@ -54,7 +54,7 @@ fn deserialize_directions<'de, D: Deserializer<'de>>(
 }
 
 fn serialize_directions<S: Serializer>(
-    directions: &[Matrix2<i32>; 4],
+    directions: &[Matrix2<i64>; 4],
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     let defs: [DirectionDef; 4] = from_fn(|i| {
@@ -69,16 +69,16 @@ fn serialize_directions<S: Serializer>(
 
 #[derive(Serialize, Deserialize, Debug)]
 struct DirectionDef {
-    red: Vector2<i32>,
-    blue: Vector2<i32>,
+    red: Vector2<i64>,
+    blue: Vector2<i64>,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
 #[serde(tag = "type", rename_all = "lowercase")]
 enum CodeItem {
-    Red { count: u32 },
-    Blue { count: u32 },
-    Direction { count: u32 },
+    Red { count: u64 },
+    Blue { count: u64 },
+    Direction { count: u64 },
     Space,
 }
 
@@ -93,10 +93,10 @@ struct CodeExtra {
     caps: Vec<CodeCaps>,
 }
 
-#[derive(Serialize, Deserialize, Debug)]
+#[derive(Serialize, Deserialize, Debug, Clone)]
 struct CodeCaps {
     bits: Vec<usize>,
-    cap: u32,
+    cap: u64,
 }
 
 #[derive(Serialize, Deserialize, Debug)]
@@ -107,7 +107,7 @@ struct Code {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct Root {
-    version: u32,
+    version: u64,
     config: Config,
 }
 

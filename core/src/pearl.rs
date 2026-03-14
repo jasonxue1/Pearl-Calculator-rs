@@ -1,7 +1,12 @@
 use std::fmt;
 
+use crate::{
+    config::MotionPerTnt,
+    convert::num_to_motion,
+    util::{ConfigNether, check_close, check_nether, generate},
+};
 use minecraft_mth as mth;
-use nalgebra::{Vector3, matrix, vector};
+use nalgebra::{Vector2, Vector3, matrix, vector};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -54,8 +59,7 @@ pub struct SimulationReport {
 
 impl Pearl {
     pub fn tick(&mut self, teleport: Teleport) {
-        self.motion.y -= G;
-        self.motion *= D;
+        self.tick_without_rotation();
         self.lerp_rotation();
 
         match teleport {
@@ -67,6 +71,11 @@ impl Pearl {
             }
             _ => todo!(),
         }
+    }
+
+    pub fn tick_without_rotation(&mut self) {
+        self.motion.y -= G;
+        self.motion *= D;
     }
 
     fn lerp_rotation(&mut self) {
@@ -95,8 +104,8 @@ impl Pearl {
     pub fn simulation(
         &mut self,
         tnt_motion: Vector3<f64>,
-        time: u32,
-        to_end_time: u32,
+        time: u64,
+        to_end_time: u64,
     ) -> SimulationReport {
         if to_end_time > time {
             panic!()
@@ -119,6 +128,40 @@ impl Pearl {
             history,
             final_pos: self.position,
         }
+    }
+
+    fn is_close(self, target_point: Vector2<i64>, error: u64) -> bool {
+        check_close(target_point, self.position, error)
+    }
+
+    pub fn calculation_nether(
+        self,
+        max_num: Vector2<u64>,
+        target_point: Vector2<i64>,
+        motion_per_tnt: MotionPerTnt,
+        error: u64,
+        max_time: u64,
+    ) -> Vec<ConfigNether> {
+        let target_point = vector![
+            target_point.x - self.position.x as i64,
+            target_point.y - self.position.z as i64
+        ];
+
+        let mut result: Vec<ConfigNether> = Vec::new();
+        for num in generate(max_num) {
+            let mut pearl = self;
+            if !check_nether(num, target_point, error) {
+                continue;
+            }
+            pearl.motion += num_to_motion(num, motion_per_tnt);
+            for t in 1..=max_time {
+                pearl.tick_without_rotation();
+                if pearl.is_close(target_point, error) {
+                    result.push(ConfigNether { num, time: t });
+                }
+            }
+        }
+        result
     }
 }
 

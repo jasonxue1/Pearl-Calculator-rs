@@ -20,8 +20,8 @@ struct Cli {
 #[derive(Subcommand)]
 enum Command {
     Simulation {
-        time: u32,
-        to_end_time: u32,
+        time: u64,
+        to_end_time: u64,
         #[command(subcommand)]
         mode: Mode,
     },
@@ -31,12 +31,12 @@ enum Command {
 enum Mode {
     Rb {
         direction: usize,
-        red: i32,
-        blue: i32,
+        red: i64,
+        blue: i64,
     },
     Num {
-        se: i32,
-        ne: i32,
+        se: i64,
+        ne: i64,
     },
 }
 
@@ -67,7 +67,7 @@ fn main() -> io::Result<()> {
                     rb_to_num(rb, config.directions)
                 }
             };
-            let simulation_report = simulation(config, num, time, to_end_time);
+            let simulation_report = simulation(&config, num, time, to_end_time);
             print_simulation_report(simulation_report);
         }
     }

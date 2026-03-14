@@ -4,16 +4,16 @@ use crate::config::{MotionPerTnt, resolve_directions};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct RB {
-    pub count: Vector2<i32>,
+    pub count: Vector2<i64>,
     pub direction: usize,
 }
 
-pub fn rb_to_num(rb: RB, directions: [Matrix2<i32>; 4]) -> Vector2<i32> {
+pub fn rb_to_num(rb: RB, directions: [Matrix2<i64>; 4]) -> Vector2<i64> {
     let base = directions[rb.direction];
     base * rb.count
 }
 
-pub fn num_to_rb(num: Vector2<i32>, directions: [Matrix2<i32>; 4]) -> RB {
+pub fn num_to_rb(num: Vector2<i64>, directions: [Matrix2<i64>; 4]) -> RB {
     let direction_type = if num.x > 0 {
         if num.y > 0 { 0 } else { 1 }
     } else {
@@ -27,7 +27,7 @@ pub fn num_to_rb(num: Vector2<i32>, directions: [Matrix2<i32>; 4]) -> RB {
     }
 }
 
-pub fn num_to_motion(num: Vector2<i32>, motion_per_tnt: MotionPerTnt) -> Vector3<f64> {
+pub fn num_to_motion(num: Vector2<i64>, motion_per_tnt: MotionPerTnt) -> Vector3<f64> {
     let total_count = num.x.abs() + num.y.abs();
     let tnt_count = matrix![
         1,1;
@@ -70,7 +70,7 @@ mod tests {
     }
 
     struct ToMotionTestCase {
-        input: Vector2<i32>,
+        input: Vector2<i64>,
         output: Vector3<f64>,
     }
 
