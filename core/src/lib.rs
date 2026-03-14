@@ -35,25 +35,20 @@ pub fn calculation(
 ) -> Vec<FtlConfigOutput> {
     let pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
-    let directions = &config.directions;
     let max_tnt = max_tnt.unwrap_or(config.max_tnt);
     match dimension {
         Dimension::Nether => {
-            let res = pearl.calculation_nether(
-                max_tnt,
-                target_point,
-                motion_per_tnt,
-                directions,
-                error,
-                max_time,
-            );
+            let res = pearl.calculation_nether(target_point, motion_per_tnt, max_time);
 
             let mut result: Vec<FtlConfigOutput> = res
                 .iter()
                 .filter_map(|&x| {
                     let new = generate_output_config_nether(config, x, target_point);
                     let out = FtlConfigOutput::Nether(new);
-                    if out.get_error() <= error as f64 {
+                    if out.get_error() <= error as f64
+                        && new.rb.count.x <= max_tnt.red as i64
+                        && new.rb.count.y <= max_tnt.blue as i64
+                    {
                         Some(out)
                     } else {
                         None

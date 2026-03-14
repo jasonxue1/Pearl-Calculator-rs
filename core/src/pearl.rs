@@ -2,11 +2,10 @@ use std::fmt;
 
 use crate::{
     config::MotionPerTnt,
-    convert::num_to_motion,
-    util::{ConfigNether, MaxTnt, check_nether, generate},
+    util::{ConfigNether, basis2nums, xz_to_basis},
 };
 use minecraft_mth as mth;
-use nalgebra::{Matrix2, Vector2, Vector3, matrix, vector};
+use nalgebra::{Vector2, Vector3, matrix, vector};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
@@ -55,13 +54,6 @@ pub enum Teleport {
 pub struct SimulationReport {
     pub history: Vec<Pearl>,
     pub final_pos: Vector3<f64>,
-}
-
-#[derive(Debug)]
-enum PearlReachState {
-    Overshot,
-    NotYet,
-    Arrived,
 }
 
 impl Pearl {
@@ -146,71 +138,21 @@ impl Pearl {
         vector![self.position.x as i64, self.position.z as i64]
     }
 
-    #[inline(always)]
-    fn check_state(self, target_point: Vector2<i64>, error: u64) -> PearlReachState {
-        let position = self.get_i64_position();
-        let pos_x = position.x.unsigned_abs();
-        let pos_y = position.y.unsigned_abs();
-        let target_x = target_point.x.unsigned_abs();
-        let target_y = target_point.y.unsigned_abs();
-        if pos_x > target_x + error || pos_y > target_y + error {
-            PearlReachState::Overshot
-        } else if pos_x.abs_diff(target_x).pow(2) + pos_y.abs_diff(target_y).pow(2) <= error.pow(2)
-        {
-            PearlReachState::Arrived
-        } else {
-            PearlReachState::NotYet
-        }
-    }
-
     pub fn calculation_nether(
         self,
-        max_tnt: MaxTnt,
         target_point: Vector2<i64>,
         motion_per_tnt: MotionPerTnt,
-        directions: &[Matrix2<i64>; 4],
-        error: u64,
         max_time: u64,
     ) -> Vec<ConfigNether> {
         let start_pos = self.get_i64_position();
-
-        let target_point = target_point - start_pos;
+        let target_distance = target_point - start_pos;
 
         let mut result: Vec<ConfigNether> = Vec::new();
 
-        let nums = generate(max_tnt, directions);
-        for num in nums {
-            if !check_nether(num, target_point, error) {
-                continue;
-            }
-
-            let mut pearl = Pearl {
-                position: vector![0.0, 0.0, 0.0],
-                ..self
-            };
-            pearl.motion += num_to_motion(num, motion_per_tnt);
-
-            let max_distance_square =
-                ((100.0 * pearl.motion.x) as i64).pow(2) + ((100.0 * pearl.motion.z) as i64).pow(2);
-
-            if max_distance_square < target_point.x.pow(2) + target_point.y.pow(2) {
-                continue;
-            }
-
-            for t in 1..=max_time {
-                pearl.change_motion();
-                pearl.position += pearl.motion;
-                match pearl.check_state(target_point, error) {
-                    PearlReachState::Arrived => {
-                        result.push(ConfigNether { num, time: t });
-                        break;
-                    }
-                    PearlReachState::Overshot => {
-                        break;
-                    }
-                    PearlReachState::NotYet => continue,
-                }
-            }
+        for time in 1..=max_time {
+            let base = xz_to_basis(target_distance);
+            let nums = basis2nums(base, motion_per_tnt.x_z, 0, time, D);
+            result.extend(nums.iter().map(|&num| ConfigNether { num, time }));
         }
 
         result

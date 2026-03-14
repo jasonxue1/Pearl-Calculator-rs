@@ -1,4 +1,4 @@
-use itertools::iproduct;
+use itertools::{Itertools, iproduct};
 use nalgebra::{Matrix2, Vector2, Vector3, vector};
 use serde::{Deserialize, Serialize};
 
@@ -59,21 +59,6 @@ pub fn generate(
         .map(|(red, blue, direction_base)| direction_base * vector![red, blue])
 }
 
-/// num means in a(1,1) and b(1,-1)
-/// target:(x,z)
-/// line (a-b)x - (a+b)z=0
-/// |(a-b)x-(a+b)z|<e*sqrt((a-b)^2+(a+b)^2)
-/// |(a-b)x-(a+b)z|<e*sqrt(2*(a^2+b^2))
-#[inline(always)]
-pub fn check_nether(num: Vector2<i64>, target_point: Vector2<i64>, error: u64) -> bool {
-    let forward = (num.x + num.y) * target_point.x + (num.x - num.y) * target_point.y >= 0;
-    forward && {
-        let lhs = (num.x - num.y) * target_point.x - (num.x + num.y) * target_point.y;
-        let rhs = error * error * 2 * (num.x * num.x + num.y * num.y) as u64;
-        (lhs * lhs) as u64 <= rhs
-    }
-}
-
 pub fn generate_output_config_nether(
     config: &Config,
     config_nether: ConfigNether,
@@ -97,4 +82,31 @@ pub fn sort_output(v: &mut [FtlConfigOutput]) {
             .cmp(&b.get_time())
             .then_with(|| a.get_error().total_cmp(&b.get_error()))
     });
+}
+
+pub fn pol2xz(r: f64, theta: f64) -> Vector2<f64> {
+    vector![theta.sin(), theta.cos()] * r
+}
+
+pub fn basis2nums(
+    base: Vector2<f64>,
+    motion_per_tnt_xz: f64,
+    start_time: u64,
+    end_time: u64,
+    d: f64,
+) -> Vec<Vector2<i64>> {
+    let t: f64 = (d.powi(start_time as i32 + 1) - d.powi(end_time as i32 + 1)) / (1.0 - d);
+    let new_base = base / motion_per_tnt_xz / t;
+    let (cx, cz) = (new_base.x.round() as i64, new_base.y.round() as i64);
+    (-5..=5)
+        .cartesian_product(-5..=5)
+        .map(|(dz, dx)| vector![cx + dx, cz + dz])
+        .collect()
+}
+
+pub fn xz_to_basis(v: Vector2<i64>) -> Vector2<f64> {
+    let x = v.x as f64;
+    let z = v.y as f64;
+
+    vector![(x + z) * 0.5, (x - z) * 0.5]
 }
