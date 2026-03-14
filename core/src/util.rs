@@ -1,5 +1,5 @@
 use itertools::iproduct;
-use nalgebra::{Matrix2, Vector2, Vector3, vector};
+use nalgebra::{Matrix2, Vector2, vector};
 use serde::{Deserialize, Serialize};
 
 #[derive(Debug, Clone, Copy)]
@@ -19,6 +19,7 @@ pub struct MaxTnt {
     pub blue: u64,
 }
 
+#[inline(always)]
 pub fn generate(
     max_tnt: MaxTnt,
     directions: &[Matrix2<i64>; 4],
@@ -43,11 +44,4 @@ pub fn check_nether(num: Vector2<i64>, target_point: Vector2<i64>, error: u64) -
         let rhs = error * error * 2 * (num.x * num.x + num.y * num.y) as u64;
         (lhs * lhs) as u64 <= rhs
     }
-}
-
-pub fn check_close(target_point: Vector2<i64>, pos: Vector3<f64>, error: u64) -> bool {
-    let target_x = target_point.x as f64;
-    let target_z = target_point.y as f64;
-
-    (pos.x - target_x).powi(2) + (pos.z - target_z).powi(2) <= (error as f64).powi(2)
 }

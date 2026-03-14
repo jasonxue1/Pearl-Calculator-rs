@@ -3,7 +3,7 @@ use std::fmt;
 use crate::{
     config::MotionPerTnt,
     convert::num_to_motion,
-    util::{ConfigNether, MaxTnt, check_close, check_nether, generate},
+    util::{ConfigNether, MaxTnt, check_nether, generate},
 };
 use minecraft_mth as mth;
 use nalgebra::{Matrix2, Vector2, Vector3, matrix, vector};
@@ -57,7 +57,15 @@ pub struct SimulationReport {
     pub final_pos: Vector3<f64>,
 }
 
+#[derive(Debug)]
+enum PearlReachState {
+    Overshot,
+    NotYet,
+    Arrived,
+}
+
 impl Pearl {
+    #[inline(always)]
     pub fn tick(&mut self, teleport: Teleport) {
         self.change_motion();
         self.lerp_rotation();
@@ -73,11 +81,13 @@ impl Pearl {
         }
     }
 
+    #[inline(always)]
     pub fn change_motion(&mut self) {
         self.motion.y -= G;
         self.motion *= D;
     }
 
+    #[inline(always)]
     fn lerp_rotation(&mut self) {
         let target_yaw: f32 = mth::atan2(self.motion.x, self.motion.z) as f32 * mth::RAD_TO_DEG;
         self.yaw = mth::lerp(
@@ -87,6 +97,7 @@ impl Pearl {
         );
     }
 
+    #[inline(always)]
     fn rotate_motion(&mut self, new_yaw: f32) {
         let old_yaw = self.yaw;
         self.yaw = new_yaw;
@@ -130,8 +141,26 @@ impl Pearl {
         }
     }
 
-    fn is_close(self, target_point: Vector2<i64>, error: u64) -> bool {
-        check_close(target_point, self.position, error)
+    #[inline(always)]
+    fn get_i64_position(self) -> Vector2<i64> {
+        vector![self.position.x as i64, self.position.z as i64]
+    }
+
+    #[inline(always)]
+    fn check_state(self, target_point: Vector2<i64>, error: u64) -> PearlReachState {
+        let position = self.get_i64_position();
+        let pos_x = position.x.unsigned_abs();
+        let pos_y = position.y.unsigned_abs();
+        let target_x = target_point.x.unsigned_abs();
+        let target_y = target_point.y.unsigned_abs();
+        if pos_x > target_x + error || pos_y > target_y + error {
+            PearlReachState::Overshot
+        } else if pos_x.abs_diff(target_x).pow(2) + pos_y.abs_diff(target_y).pow(2) <= error.pow(2)
+        {
+            PearlReachState::Arrived
+        } else {
+            PearlReachState::NotYet
+        }
     }
 
     pub fn calculation_nether(
@@ -143,27 +172,47 @@ impl Pearl {
         error: u64,
         max_time: u64,
     ) -> Vec<ConfigNether> {
-        let target_point = vector![
-            target_point.x - self.position.x as i64,
-            target_point.y - self.position.z as i64
-        ];
+        let start_pos = self.get_i64_position();
+
+        let target_point = target_point - start_pos;
 
         let mut result: Vec<ConfigNether> = Vec::new();
+
         let nums = generate(max_tnt, directions);
         for num in nums {
-            let mut pearl = self;
             if !check_nether(num, target_point, error) {
                 continue;
             }
+
+            let mut pearl = Pearl {
+                position: vector![0.0, 0.0, 0.0],
+                ..self
+            };
             pearl.motion += num_to_motion(num, motion_per_tnt);
+
+            let max_distance_square =
+                ((100.0 * pearl.motion.x) as i64).pow(2) + ((100.0 * pearl.motion.z) as i64).pow(2);
+
+            if max_distance_square < target_point.x.pow(2) + target_point.y.pow(2) {
+                continue;
+            }
+
             for t in 1..=max_time {
                 pearl.change_motion();
                 pearl.position += pearl.motion;
-                if pearl.is_close(target_point, error) {
-                    result.push(ConfigNether { num, time: t });
+                match pearl.check_state(target_point, error) {
+                    PearlReachState::Arrived => {
+                        result.push(ConfigNether { num, time: t });
+                        break;
+                    }
+                    PearlReachState::Overshot => {
+                        break;
+                    }
+                    PearlReachState::NotYet => continue,
                 }
             }
         }
+
         result
     }
 }
