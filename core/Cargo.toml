@@ -1,0 +1,21 @@
+[package]
+name = "pearl-calculator"
+version.workspace = true
+edition.workspace = true
+description.workspace = true
+readme.workspace = true
+repository.workspace = true
+license.workspace = true
+
+[dependencies]
+clap = { version = "4.6", features = ["derive"] }
+comfy-table = "7.2"
+minecraft-mth = "0.2"
+nalgebra = { version = "0.34", features = ["serde-serialize"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+serde_repr = "0.1"
+
+[dev-dependencies]
+approx = "0.5"
+itertools = "0.14"

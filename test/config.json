@@ -1,0 +1,82 @@
+{
+  "version": 1,
+  "config": {
+    "pearl": {
+      "position": [0, 253.06280937674018, 0],
+      "motion": [0, 0.34920132664774944, 0],
+      "dimension": -1
+    },
+    "directions": [
+      { "red": [1, 0], "blue": [0, 1] },
+      { "red": [-1, 0], "blue": [0, 1] },
+      { "red": [0, -1], "blue": [-1, 0] },
+      { "red": [0, -1], "blue": [1, 0] }
+    ],
+    "motion_per_tnt": {
+      "x_z": 0.6406475114548377,
+      "y": 0.0000041762421424
+    },
+    "code": {
+      "default": [
+        { "type": "red", "count": 340 },
+        { "type": "red", "count": 680 },
+        { "type": "red", "count": 1360 },
+        { "type": "red", "count": 130 },
+        { "type": "space" },
+
+        { "type": "red", "count": 50 },
+        { "type": "red", "count": 2720 },
+        { "type": "direction", "count": 2 },
+        { "type": "red", "count": 10 },
+        { "type": "space" },
+
+        { "type": "red", "count": 20 },
+        { "type": "red", "count": 40 },
+        { "type": "red", "count": 80 },
+        { "type": "red", "count": 8 },
+        { "type": "space" },
+
+        { "type": "red", "count": 4 },
+        { "type": "red", "count": 2 },
+        { "type": "red", "count": 1 },
+
+        { "type": "space" },
+        { "type": "space" },
+
+        { "type": "blue", "count": 1 },
+        { "type": "blue", "count": 2 },
+        { "type": "blue", "count": 4 },
+        { "type": "blue", "count": 8 },
+        { "type": "space" },
+
+        { "type": "blue", "count": 80 },
+        { "type": "blue", "count": 40 },
+        { "type": "blue", "count": 20 },
+        { "type": "blue", "count": 10 },
+        { "type": "space" },
+
+        { "type": "direction", "count": 1 },
+        { "type": "blue", "count": 2720 },
+        { "type": "blue", "count": 50 },
+        { "type": "blue", "count": 130 },
+        { "type": "space" },
+
+        { "type": "blue", "count": 1360 },
+        { "type": "blue", "count": 680 },
+        { "type": "blue", "count": 340 },
+
+        { "type": "space" },
+        { "type": "space" },
+
+        { "type": "blue", "count": 5440 },
+        { "type": "red", "count": 5440 }
+      ],
+      "extra": {
+        "caps": [
+          { "bits": [12, 13, 14, 15], "cap": 10 },
+          { "bits": [16, 17, 18, 19], "cap": 10 }
+        ]
+      }
+    }
+  }
+}

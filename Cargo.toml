@@ -1,6 +1,6 @@
 [workspace]
 resolver = "3"
-members = ["pearl-calculator", "pearl-calculator-gui"]
+members = ["core", "gui"]
 
 [workspace.package]
 version = "0.1.0"
