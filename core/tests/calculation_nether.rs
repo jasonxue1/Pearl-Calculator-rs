@@ -17,10 +17,10 @@ fn main() {
     let config = Config::from(value);
 
     let max_tnt = MaxTnt {
-        red: 1000,
-        blue: 1000,
+        red: 100,
+        blue: 100,
     };
-    let target_point = vector![3000, 2000];
+    let target_point = vector![300, 200];
     let error = 10;
     let max_time = 5;
     let dimension = Dimension::Nether;

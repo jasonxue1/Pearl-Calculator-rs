@@ -4,7 +4,7 @@ use crate::{
     config::Config,
     convert::num_to_motion,
     pearl::{Dimension, SimulationReport},
-    util::{FtlConfig, MaxTnt},
+    util::{FtlConfigOutput, MaxTnt, generate_output_config_nether, sort_output},
 };
 
 /// num means tnt counts in (1,1) and (1,-1)
@@ -32,7 +32,7 @@ pub fn calculation(
     error: u64,
     max_time: u64,
     dimension: Dimension,
-) -> Vec<FtlConfig> {
+) -> Vec<FtlConfigOutput> {
     let pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
     let directions = &config.directions;
@@ -48,7 +48,20 @@ pub fn calculation(
                 max_time,
             );
 
-            res.iter().map(|&x| FtlConfig::Nether(x)).collect()
+            let mut result: Vec<FtlConfigOutput> = res
+                .iter()
+                .filter_map(|&x| {
+                    let new = generate_output_config_nether(config, x, target_point);
+                    let out = FtlConfigOutput::Nether(new);
+                    if out.get_error() <= error as f64 {
+                        Some(out)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+            sort_output(&mut result);
+            result
         }
         _ => {
             todo!()

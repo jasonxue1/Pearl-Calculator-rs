@@ -4,19 +4,17 @@ use comfy_table::{
     Attribute, Cell, CellAlignment, Color, ContentArrangement, Table,
     modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL,
 };
-use nalgebra::Matrix2;
 use pearl_calculator::{
-    convert::num_to_rb,
     pearl::{Dimension, Pearl, SimulationReport},
-    util::{ConfigNether, FtlConfig},
+    util::{ConfigOutputNether, FtlConfigOutput},
 };
 
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_GREEN: &str = "\x1b[1;32m";
 const TIME_COLOR: Color = Color::Green;
-const TNT_COLOR: Color = Color::Cyan;
 const RB_COLOR: Color = Color::Yellow;
 const DIRECTION_COLOR: Color = Color::Magenta;
+const ERROR_COLOR: Color = Color::Red;
 const POS_COLOR: Color = Color::Cyan;
 const VEL_COLOR: Color = Color::Yellow;
 const YAW_COLOR: Color = Color::Magenta;
@@ -120,19 +118,20 @@ pub fn print_simulation_report(simulation_report: SimulationReport) {
     println!("{}", green_text(&final_line));
 }
 
-fn calculation_row(result: ConfigNether, directions: [Matrix2<i64>; 4]) -> Vec<Cell> {
-    let rb = num_to_rb(result.num, directions);
+fn calculation_row(result: ConfigOutputNether) -> Vec<Cell> {
     vec![
         integer_cell(result.time, TIME_COLOR),
-        integer_cell(result.num.x, TNT_COLOR),
-        integer_cell(result.num.y, TNT_COLOR),
-        integer_cell(rb.direction, DIRECTION_COLOR),
-        integer_cell(rb.count.x, RB_COLOR),
-        integer_cell(rb.count.y, RB_COLOR),
+        integer_cell(result.rb.direction, DIRECTION_COLOR),
+        integer_cell(result.rb.count.x, RB_COLOR),
+        integer_cell(result.rb.count.y, RB_COLOR),
+        number_cell(result.error, ERROR_COLOR),
+        number_cell(result.final_pos.x, POS_COLOR),
+        number_cell(result.final_pos.y, POS_COLOR),
+        number_cell(result.final_pos.z, POS_COLOR),
     ]
 }
 
-pub fn print_calculation_report(mut results: Vec<FtlConfig>, directions: [Matrix2<i64>; 4]) {
+pub fn print_calculation_report(results: Vec<FtlConfigOutput>, max_output_count: usize) {
     if results.is_empty() {
         println!("{}", green_text("No calculation results."));
         return;
@@ -140,34 +139,29 @@ pub fn print_calculation_report(mut results: Vec<FtlConfig>, directions: [Matrix
 
     let result_count = results.len();
 
-    results.sort_by_key(|result| match result {
-        FtlConfig::Nether(config) => (
-            config.time,
-            config.num.x.abs() + config.num.y.abs(),
-            config.num.x,
-            config.num.y,
-        ),
-    });
-
     let mut table = new_table();
     table.set_header(vec![
         header_cell("Time", TIME_COLOR),
-        header_cell("SE", TNT_COLOR),
-        header_cell("NE", TNT_COLOR),
         header_cell("Dir", DIRECTION_COLOR),
         header_cell("Red", RB_COLOR),
         header_cell("Blue", RB_COLOR),
+        header_cell("Error", ERROR_COLOR),
+        header_cell("Pos X", POS_COLOR),
+        header_cell("Pos Y", POS_COLOR),
+        header_cell("Pos Z", POS_COLOR),
     ]);
 
-    for result in results {
+    for result in results.into_iter().take(max_output_count) {
         match result {
-            FtlConfig::Nether(config) => table.add_row(calculation_row(config, directions)),
+            FtlConfigOutput::Nether(config) => table.add_row(calculation_row(config)),
         };
     }
 
     println!("{table}");
     println!(
         "{}",
-        green_text(&format!("Calculation finished. {result_count} result(s)."))
+        green_text(&format!(
+            "Calculation finished. Showing up to {max_output_count} of {result_count} result(s)."
+        ))
     );
 }

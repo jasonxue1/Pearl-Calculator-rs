@@ -1,10 +1,38 @@
 use itertools::iproduct;
-use nalgebra::{Matrix2, Vector2, vector};
+use nalgebra::{Matrix2, Vector2, Vector3, vector};
 use serde::{Deserialize, Serialize};
 
+use crate::{
+    config::Config,
+    convert::{RB, num_to_rb},
+    simulation,
+};
+
 #[derive(Debug, Clone, Copy)]
-pub enum FtlConfig {
-    Nether(ConfigNether),
+pub enum FtlConfigOutput {
+    Nether(ConfigOutputNether),
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct ConfigOutputNether {
+    pub rb: RB,
+    pub time: u64,
+    pub error: f64,
+    pub final_pos: Vector3<f64>,
+}
+
+impl FtlConfigOutput {
+    pub fn get_error(self) -> f64 {
+        match self {
+            Self::Nether(f) => f.error,
+        }
+    }
+
+    pub fn get_time(self) -> u64 {
+        match self {
+            Self::Nether(f) => f.time,
+        }
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
@@ -44,4 +72,29 @@ pub fn check_nether(num: Vector2<i64>, target_point: Vector2<i64>, error: u64) -
         let rhs = error * error * 2 * (num.x * num.x + num.y * num.y) as u64;
         (lhs * lhs) as u64 <= rhs
     }
+}
+
+pub fn generate_output_config_nether(
+    config: &Config,
+    config_nether: ConfigNether,
+    target_point: Vector2<i64>,
+) -> ConfigOutputNether {
+    let final_pos = simulation(config, config_nether.num, config_nether.time, 0).final_pos;
+    let rb = num_to_rb(config_nether.num, config.directions);
+    let target_pos = target_point.cast::<f64>();
+    let final_pos_x_z = vector![final_pos.x, final_pos.z];
+    ConfigOutputNether {
+        rb,
+        time: config_nether.time,
+        error: final_pos_x_z.metric_distance(&target_pos),
+        final_pos,
+    }
+}
+
+pub fn sort_output(v: &mut [FtlConfigOutput]) {
+    v.sort_unstable_by(|a, b| {
+        a.get_time()
+            .cmp(&b.get_time())
+            .then_with(|| a.get_error().total_cmp(&b.get_error()))
+    });
 }

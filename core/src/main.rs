@@ -80,6 +80,8 @@ struct CalculationArgs {
     error: u64,
     #[arg(long = "max-time")]
     max_time: u64,
+    #[arg(long = "max-output-count", default_value_t = 20)]
+    max_output_count: usize,
 }
 
 fn parse_num(values: Vec<i64>) -> [i64; 2] {
@@ -154,7 +156,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 args.max_time,
                 Dimension::Nether,
             );
-            print_calculation_report(calculation_report, config.directions);
+            print_calculation_report(calculation_report, args.max_output_count);
         }
     }
     Ok(())
