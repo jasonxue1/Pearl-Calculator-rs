@@ -6,11 +6,11 @@ pub struct Pearl {
     pub position: Array,
     pub motion: Array,
     #[serde(default)]
-    pub yaw: Yaw,
+    pub yaw: Angle,
     #[serde(default)]
     pub dimension: Dimension,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy, Default)]
 #[serde(default)]
-pub struct Yaw(pub f32);
+pub struct Angle(pub f32);

@@ -14,7 +14,7 @@ mod report;
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub struct Array(pub Vector3<f64>);
 
-#[derive(Serialize_repr, Deserialize_repr, Default, Debug, PartialEq, Clone, Copy)]
+#[derive(Serialize_repr, Deserialize_repr, Default, Debug, Clone, Copy)]
 #[repr(i8)]
 pub enum Dimension {
     Overworld = 0,

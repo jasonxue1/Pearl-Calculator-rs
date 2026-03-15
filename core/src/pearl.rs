@@ -4,7 +4,7 @@ use minecraft_mth as mth;
 use nalgebra::{Vector2, matrix, vector};
 
 const END_SPAWN_POSTION: Array = Array(vector![100.5, 50.0, 0.5]);
-const END_SPAWN_YAW: Yaw = Yaw(90.0);
+const END_SPAWN_YAW: Angle = Angle(90.0);
 
 enum Teleport {
     None,
@@ -22,7 +22,7 @@ impl Pearl {
     }
 
     fn tick(&mut self, teleport: Teleport) {
-        self.motion.tick();
+        self.motion.tick_motion();
         self.lerp_rotation();
 
         match teleport {
@@ -38,7 +38,7 @@ impl Pearl {
         }
     }
 
-    fn rotate_motion(&mut self, new_yaw: Yaw) {
+    fn rotate_motion(&mut self, new_yaw: Angle) {
         let old_yaw = self.yaw;
         self.yaw = new_yaw;
         let rad = (old_yaw.0 - self.yaw.0) * mth::DEG_TO_RAD;
@@ -69,8 +69,8 @@ impl Pearl {
         let mut history: Vec<Pearl> = Vec::new();
         history.push(*self);
         let mut to_end_pos = None;
-        for _ in 0..time {
-            if time == to_end_time {
+        for tick in 0..time {
+            if tick + 1 == to_end_time {
                 let mut self_clone = *self;
                 self_clone.tick(Teleport::None);
                 to_end_pos = Some(self_clone.position);
@@ -105,15 +105,27 @@ impl Pearl {
 
         let start_time_iter = match dimension {
             Dimension::Nether => Time::range(Time(0), Time(1)),
-            Dimension::End => Time::range(Time(1), max_time),
+            Dimension::End => Time::range(Time(0), max_time),
             Dimension::Overworld => todo!(),
         };
 
         for start_time in start_time_iter {
-            for end_time in Time::range(start_time + 1, max_time + 1) {
-                let nums = target_distance.to_nums(motion_per_tnt, start_time, end_time);
+            let first_end_time = match dimension {
+                Dimension::End => start_time + 2,
+                _ => start_time + 1,
+            };
+
+            for end_time in Time::range(first_end_time, max_time + 1) {
+                let rotate = matches!(dimension, Dimension::End);
+                let nums = Array::to_nums(
+                    target_distance,
+                    motion_per_tnt,
+                    start_time,
+                    end_time,
+                    rotate,
+                );
                 let to_end_time = match dimension {
-                    Dimension::End => Some(start_time),
+                    Dimension::End => Some(start_time + 1),
                     _ => None,
                 };
                 result.extend(nums.iter().map(|&num| FtlConfig {
