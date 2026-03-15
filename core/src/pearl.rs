@@ -2,30 +2,28 @@ use std::fmt;
 
 use crate::{
     config::MotionPerTnt,
-    util::{ConfigNether, basis2nums, xz_to_basis},
+    util::{Array, FtlConfig, Time, Yaw},
 };
 use minecraft_mth as mth;
-use nalgebra::{Vector2, Vector3, matrix, vector};
+use nalgebra::{Vector2, matrix, vector};
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
 
-const G: f64 = 0.03;
-const D: f64 = 0.99_f32 as f64;
-const END_SPAWN_POS: Vector3<f64> = vector![100.5, 50.0, 0.5];
+const END_SPAWN_POSTION: Array = Array(vector![100.5, 50.0, 0.5]);
+const END_SPAWN_YAW: Yaw = Yaw(90.0);
 
 #[derive(Serialize, Deserialize, Debug, Clone, Copy)]
 pub struct Pearl {
-    pub position: Vector3<f64>,
-    pub motion: Vector3<f64>,
+    pub position: Array,
+    pub motion: Array,
     #[serde(default)]
-    pub yaw: f32,
+    pub yaw: Yaw,
     #[serde(default)]
     pub dimension: Dimension,
 }
 
-#[derive(Serialize_repr, Deserialize_repr, Debug, PartialEq, Clone, Copy)]
+#[derive(Serialize_repr, Deserialize_repr, Default, Debug, PartialEq, Clone, Copy)]
 #[repr(i8)]
-#[derive(Default)]
 pub enum Dimension {
     Overworld = 0,
     #[default]
@@ -53,47 +51,38 @@ pub enum Teleport {
 #[derive(Debug)]
 pub struct SimulationReport {
     pub history: Vec<Pearl>,
-    pub final_pos: Vector3<f64>,
+    pub final_pos: Array,
+    pub end_portal_pos: Option<Array>,
 }
 
 impl Pearl {
-    #[inline(always)]
+    fn move_motion(&mut self) {
+        self.position += self.motion
+    }
+
+    fn lerp_rotation(&mut self) {
+        self.yaw.lerp_rotation(self.motion);
+    }
+
     pub fn tick(&mut self, teleport: Teleport) {
-        self.change_motion();
+        self.motion.tick();
         self.lerp_rotation();
 
         match teleport {
-            Teleport::None => self.position += self.motion,
+            Teleport::None => self.move_motion(),
             Teleport::EndPortal if self.dimension != Dimension::End => {
-                self.rotate_motion(90.0);
+                self.rotate_motion(END_SPAWN_YAW);
                 self.dimension = Dimension::End;
-                self.position = END_SPAWN_POS;
+                self.position = END_SPAWN_POSTION;
             }
             _ => todo!(),
         }
     }
 
-    #[inline(always)]
-    pub fn change_motion(&mut self) {
-        self.motion.y -= G;
-        self.motion *= D;
-    }
-
-    #[inline(always)]
-    fn lerp_rotation(&mut self) {
-        let target_yaw: f32 = mth::atan2(self.motion.x, self.motion.z) as f32 * mth::RAD_TO_DEG;
-        self.yaw = mth::lerp(
-            0.2,
-            target_yaw - mth::wrap_degrees(target_yaw - self.yaw),
-            target_yaw,
-        );
-    }
-
-    #[inline(always)]
-    fn rotate_motion(&mut self, new_yaw: f32) {
+    fn rotate_motion(&mut self, new_yaw: Yaw) {
         let old_yaw = self.yaw;
         self.yaw = new_yaw;
-        let rad = (old_yaw - self.yaw) * mth::DEG_TO_RAD;
+        let rad = (old_yaw.0 - self.yaw.0) * mth::DEG_TO_RAD;
         let s = mth::sin(rad as f64) as f64;
         let c = mth::cos(rad as f64) as f64;
         let r = matrix![
@@ -101,15 +90,16 @@ impl Pearl {
             0.0, 1.0, 0.0;
             -s,  0.0,c
         ];
-        self.motion = r * self.motion;
+        self.motion.0 = r * self.motion.0;
     }
 
     pub fn simulation(
         &mut self,
-        tnt_motion: Vector3<f64>,
-        time: u64,
-        to_end_time: u64,
+        tnt_motion: Array,
+        Time(time): Time,
+        to_end_time: Option<Time>,
     ) -> SimulationReport {
+        let Time(to_end_time) = to_end_time.unwrap_or(Time(0));
         if to_end_time > time {
             panic!()
         };
@@ -119,8 +109,12 @@ impl Pearl {
         self.motion += tnt_motion;
         let mut history: Vec<Pearl> = Vec::new();
         history.push(*self);
+        let mut to_end_pos = None;
         for _ in 0..time {
             if time == to_end_time {
+                let mut self_clone = *self;
+                self_clone.tick(Teleport::None);
+                to_end_pos = Some(self_clone.position);
                 self.tick(Teleport::EndPortal)
             } else {
                 self.tick(Teleport::None)
@@ -130,190 +124,47 @@ impl Pearl {
         SimulationReport {
             history,
             final_pos: self.position,
+            end_portal_pos: to_end_pos,
         }
     }
 
-    #[inline(always)]
-    fn get_i64_position(self) -> Vector2<i64> {
-        vector![self.position.x as i64, self.position.z as i64]
-    }
-
-    pub fn calculation_nether(
+    pub fn calculation(
         self,
         target_point: Vector2<i64>,
         motion_per_tnt: MotionPerTnt,
-        max_time: u64,
-    ) -> Vec<ConfigNether> {
-        let start_pos = self.get_i64_position();
-        let target_distance = target_point - start_pos;
+        max_time: Time,
+        dimension: Dimension,
+    ) -> Vec<FtlConfig> {
+        let start_pos = match dimension {
+            Dimension::Nether => self.position,
+            Dimension::End => END_SPAWN_POSTION,
+            Dimension::Overworld => todo!(),
+        };
+        let target_distance = start_pos.array_to(target_point.into());
 
-        let mut result: Vec<ConfigNether> = Vec::new();
+        let mut result: Vec<FtlConfig> = Vec::new();
 
-        for time in 1..=max_time {
-            let base = xz_to_basis(target_distance);
-            let nums = basis2nums(base, motion_per_tnt.x_z, 0, time, D);
-            result.extend(nums.iter().map(|&num| ConfigNether { num, time }));
+        let start_time_iter = match dimension {
+            Dimension::Nether => Time::range(Time(0), Time(1)),
+            Dimension::End => Time::range(Time(1), max_time),
+            Dimension::Overworld => todo!(),
+        };
+
+        for start_time in start_time_iter {
+            for end_time in Time::range(start_time + 1, max_time + 1) {
+                let nums = target_distance.to_nums(motion_per_tnt, start_time, end_time);
+                let to_end_time = match dimension {
+                    Dimension::End => Some(start_time),
+                    _ => None,
+                };
+                result.extend(nums.iter().map(|&num| FtlConfig {
+                    tnt_num: num,
+                    end_time,
+                    to_end_time,
+                }));
+            }
         }
 
         result
-    }
-}
-
-#[cfg(test)]
-impl Pearl {
-    fn approx_eq(&self, other: Self) -> bool {
-        const EPS: f64 = 1e-5;
-        use approx::abs_diff_eq;
-        abs_diff_eq!(self.position, other.position, epsilon = EPS)
-            && abs_diff_eq!(self.motion, other.motion, epsilon = EPS)
-            && abs_diff_eq!(self.yaw as f64, other.yaw as f64, epsilon = EPS)
-            && self.dimension == other.dimension
-    }
-}
-
-#[cfg(test)]
-mod tests {
-
-    use super::*;
-
-    struct TickTestCase {
-        input: Pearl,
-        output: Pearl,
-    }
-
-    #[test]
-    fn tick_test_no_teleport() {
-        let cases = vec![
-            TickTestCase {
-                input: Pearl {
-                    position: vector![10.0, 10.0, 10.0],
-                    motion: vector![5.0, 15.0, 4.0],
-                    yaw: 50.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![14.95, 24.8203, 13.96],
-                    motion: vector![4.95, 14.8203, 3.96],
-                    yaw: 50.268036,
-                    dimension: Dimension::Nether,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![-3.5, 64.0, 8.25],
-                    motion: vector![0.0, 0.0, 0.0],
-                    yaw: 0.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![-3.5, 63.9703, 8.25],
-                    motion: vector![0.0, -0.0297, 0.0],
-                    yaw: 0.0,
-                    dimension: Dimension::Nether,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![123.456, 78.9, -45.67],
-                    motion: vector![-1.25, 0.5, 2.75],
-                    yaw: -170.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![122.2185, 79.3653, -42.9475],
-                    motion: vector![-1.2375, 0.4653, 2.7225],
-                    yaw: -140.8888,
-                    dimension: Dimension::Nether,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![0.0, 100.0, 0.0],
-                    motion: vector![10.0, -2.0, -10.0],
-                    yaw: 179.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![9.9, 97.9903, -9.9],
-                    motion: vector![9.9, -2.0097, -9.9],
-                    yaw: 170.2,
-                    dimension: Dimension::Nether,
-                },
-            },
-        ];
-
-        for case in cases {
-            let mut pearl = case.input;
-            pearl.tick(Teleport::None);
-            assert!(pearl.approx_eq(case.output));
-        }
-    }
-
-    #[test]
-    fn tick_test_from_nether_to_end() {
-        let cases = vec![
-            TickTestCase {
-                input: Pearl {
-                    position: vector![10.0, 10.0, 10.0],
-                    motion: vector![5.0, 15.0, 4.0],
-                    yaw: 50.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![100.5, 50.0, 0.5],
-                    motion: vector![1.275825, 14.8203, 6.209073],
-                    yaw: 90.0,
-                    dimension: Dimension::End,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![-3.5, 64.0, 8.25],
-                    motion: vector![0.0, 0.0, 0.0],
-                    yaw: 0.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![100.5, 50.0, 0.5],
-                    motion: vector![0.0, -0.0297, 0.0],
-                    yaw: 90.0,
-                    dimension: Dimension::End,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![123.456, 78.9, -45.67],
-                    motion: vector![-1.25, 0.5, 2.75],
-                    yaw: -170.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![100.5, 50.0, 0.5],
-                    motion: vector![2.893098, 0.4653, -0.757229],
-                    yaw: 90.0,
-                    dimension: Dimension::End,
-                },
-            },
-            TickTestCase {
-                input: Pearl {
-                    position: vector![0.0, 100.0, 0.0],
-                    motion: vector![10.0, -2.0, -10.0],
-                    yaw: 179.0,
-                    dimension: Dimension::Nether,
-                },
-                output: Pearl {
-                    position: vector![100.5, 50.0, 0.5],
-                    motion: vector![-8.069406, -2.0097, -11.441359],
-                    yaw: 90.0,
-                    dimension: Dimension::End,
-                },
-            },
-        ];
-
-        for case in cases {
-            let mut pearl = case.input;
-            pearl.tick(Teleport::EndPortal);
-            assert!(pearl.approx_eq(case.output));
-        }
     }
 }

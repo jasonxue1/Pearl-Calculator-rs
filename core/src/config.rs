@@ -3,7 +3,10 @@ use std::array::from_fn;
 use nalgebra::{Matrix2, Vector2};
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
-use crate::{pearl::Pearl, util::MaxTnt};
+use crate::{
+    pearl::Pearl,
+    util::{Direction, Directions, TNTNumRB, Time},
+};
 
 // direction
 // red1 red2
@@ -15,51 +18,30 @@ pub struct Config {
         deserialize_with = "deserialize_directions",
         serialize_with = "serialize_directions"
     )]
-    pub directions: [Matrix2<i64>; 4],
+    pub directions: Directions,
     code: Code,
     pub motion_per_tnt: MotionPerTnt,
-    pub max_tnt: MaxTnt,
-}
-
-pub fn resolve_directions(directions: [Matrix2<i64>; 4]) -> [usize; 4] {
-    let mut indices = [0; 4];
-    let mut seen = [false; 4];
-
-    for (i, m) in directions.iter().enumerate() {
-        let sum = m.column(0) + m.column(1);
-        let idx = match (sum.x, sum.y) {
-            (1, 1) => 0,
-            (1, -1) => 1,
-            (-1, 1) => 2,
-            (-1, -1) => 3,
-            _ => panic!(),
-        };
-
-        if seen[idx] {
-            panic!()
-        }
-        seen[idx] = true;
-        indices[idx] = i;
-    }
-
-    indices
+    pub max_tnt: TNTNumRB,
+    pub max_error: f64,
+    pub show_first: usize,
+    pub max_time: Time,
 }
 
 fn deserialize_directions<'de, D: Deserializer<'de>>(
     deserializer: D,
-) -> Result<[Matrix2<i64>; 4], D::Error> {
+) -> Result<Directions, D::Error> {
     let defs = <[DirectionDef; 4]>::deserialize(deserializer)?;
-    let result = defs.map(|d| Matrix2::from_columns(&[d.red, d.blue]));
-    resolve_directions(result);
+    let result = Directions(defs.map(|d| Direction(Matrix2::from_columns(&[d.red, d.blue]))));
+    result.resolve();
     Ok(result)
 }
 
 fn serialize_directions<S: Serializer>(
-    directions: &[Matrix2<i64>; 4],
+    directions: &Directions,
     serializer: S,
 ) -> Result<S::Ok, S::Error> {
     let defs: [DirectionDef; 4] = from_fn(|i| {
-        let m = &directions[i];
+        let &Direction(m) = &directions.0[i];
         DirectionDef {
             red: m.column(0).into_owned(),
             blue: m.column(1).into_owned(),
@@ -130,7 +112,7 @@ mod tests {
     #[test]
     fn parse_json_test() {
         let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let file = root.join("../test/config.json");
+        let file = root.join("../test-config/config.json");
         let content = fs::read_to_string(file).unwrap();
         let value: Root = serde_json::from_str(&content).unwrap();
         dbg!(value);

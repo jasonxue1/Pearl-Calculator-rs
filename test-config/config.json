@@ -20,6 +20,9 @@
       "x_z": 0.6406475114548377,
       "y": 0.0000041762421424
     },
+    "max_error": 20,
+    "show_first": 10,
+    "max_time": 10,
     "code": {
       "default": [
         { "type": "red", "count": 340 },

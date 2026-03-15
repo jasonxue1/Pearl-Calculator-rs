@@ -6,7 +6,7 @@ use comfy_table::{
 };
 use pearl_calculator::{
     pearl::{Dimension, Pearl, SimulationReport},
-    util::{ConfigOutputNether, FtlConfigOutput},
+    util::FtlConfigOutput,
 };
 
 const ANSI_RESET: &str = "\x1b[0m";
@@ -70,13 +70,13 @@ fn tick_cell(tick: usize) -> Cell {
 fn history_row(tick: usize, pearl: Pearl) -> Vec<Cell> {
     vec![
         tick_cell(tick),
-        number_cell(pearl.position.x, POS_COLOR),
-        number_cell(pearl.position.y, POS_COLOR),
-        number_cell(pearl.position.z, POS_COLOR),
-        number_cell(pearl.motion.x, VEL_COLOR),
-        number_cell(pearl.motion.y, VEL_COLOR),
-        number_cell(pearl.motion.z, VEL_COLOR),
-        number_cell(pearl.yaw as f64, YAW_COLOR),
+        number_cell(pearl.position.0.x, POS_COLOR),
+        number_cell(pearl.position.0.y, POS_COLOR),
+        number_cell(pearl.position.0.z, POS_COLOR),
+        number_cell(pearl.motion.0.x, VEL_COLOR),
+        number_cell(pearl.motion.0.y, VEL_COLOR),
+        number_cell(pearl.motion.0.z, VEL_COLOR),
+        number_cell(pearl.yaw.0 as f64, YAW_COLOR),
         dimension_cell(pearl.dimension),
     ]
 }
@@ -84,7 +84,7 @@ fn history_row(tick: usize, pearl: Pearl) -> Vec<Cell> {
 fn format_final_position(report: &SimulationReport) -> String {
     format!(
         "Final position: ({:.5}, {:.5}, {:.5})",
-        report.final_pos.x, report.final_pos.y, report.final_pos.z
+        report.final_pos.0.x, report.final_pos.0.y, report.final_pos.0.z
     )
 }
 
@@ -115,32 +115,77 @@ pub fn print_simulation_report(simulation_report: SimulationReport) {
         history.add_row(history_row(tick, pearl));
     }
     println!("{history}");
+    if let Some(end_portal_pos) = simulation_report.end_portal_pos {
+        println!(
+            "{}",
+            green_text(&format!(
+                "End portal position: ({:.5}, {:.5}, {:.5})",
+                end_portal_pos.0.x, end_portal_pos.0.y, end_portal_pos.0.z
+            ))
+        );
+    }
     println!("{}", green_text(&final_line));
 }
 
-fn calculation_row(result: ConfigOutputNether) -> Vec<Cell> {
-    vec![
-        integer_cell(result.time, TIME_COLOR),
-        integer_cell(result.rb.direction, DIRECTION_COLOR),
-        integer_cell(result.rb.count.x, RB_COLOR),
-        integer_cell(result.rb.count.y, RB_COLOR),
-        number_cell(result.error, ERROR_COLOR),
-        number_cell(result.final_pos.x, POS_COLOR),
-        number_cell(result.final_pos.y, POS_COLOR),
-        number_cell(result.final_pos.z, POS_COLOR),
-    ]
+fn empty_cell() -> Cell {
+    Cell::new("")
 }
 
-pub fn print_calculation_report(results: Vec<FtlConfigOutput>, max_output_count: usize) {
+fn calculation_row(
+    result: FtlConfigOutput,
+    show_to_end_time: bool,
+    show_end_portal_pos: bool,
+) -> Vec<Cell> {
+    let mut row = vec![
+        integer_cell(result.end_time.0, TIME_COLOR),
+        integer_cell(result.rb.direction, DIRECTION_COLOR),
+        integer_cell(result.rb.num.red, RB_COLOR),
+        integer_cell(result.rb.num.blue, RB_COLOR),
+        number_cell(result.error, ERROR_COLOR),
+        number_cell(result.final_pos.0.x, POS_COLOR),
+        number_cell(result.final_pos.0.y, POS_COLOR),
+        number_cell(result.final_pos.0.z, POS_COLOR),
+    ];
+
+    if show_to_end_time {
+        row.push(
+            result
+                .to_end_time
+                .map(|value| integer_cell(value.0, TIME_COLOR))
+                .unwrap_or_else(empty_cell),
+        );
+    }
+
+    if show_end_portal_pos {
+        match result.end_portal_pos {
+            Some(pos) => {
+                row.push(number_cell(pos.0.x, POS_COLOR));
+                row.push(number_cell(pos.0.y, POS_COLOR));
+                row.push(number_cell(pos.0.z, POS_COLOR));
+            }
+            None => {
+                row.push(empty_cell());
+                row.push(empty_cell());
+                row.push(empty_cell());
+            }
+        }
+    }
+
+    row
+}
+
+pub fn print_calculation_report(results: Vec<FtlConfigOutput>) {
     if results.is_empty() {
         println!("{}", green_text("No calculation results."));
         return;
     }
 
     let result_count = results.len();
+    let show_to_end_time = results.iter().any(|result| result.to_end_time.is_some());
+    let show_end_portal_pos = results.iter().any(|result| result.end_portal_pos.is_some());
 
     let mut table = new_table();
-    table.set_header(vec![
+    let mut header = vec![
         header_cell("Time", TIME_COLOR),
         header_cell("Dir", DIRECTION_COLOR),
         header_cell("Red", RB_COLOR),
@@ -149,19 +194,31 @@ pub fn print_calculation_report(results: Vec<FtlConfigOutput>, max_output_count:
         header_cell("Pos X", POS_COLOR),
         header_cell("Pos Y", POS_COLOR),
         header_cell("Pos Z", POS_COLOR),
-    ]);
+    ];
 
-    for result in results.into_iter().take(max_output_count) {
-        match result {
-            FtlConfigOutput::Nether(config) => table.add_row(calculation_row(config)),
-        };
+    if show_to_end_time {
+        header.push(header_cell("To End", TIME_COLOR));
+    }
+
+    if show_end_portal_pos {
+        header.push(header_cell("Portal X", POS_COLOR));
+        header.push(header_cell("Portal Y", POS_COLOR));
+        header.push(header_cell("Portal Z", POS_COLOR));
+    }
+
+    table.set_header(header);
+
+    for result in results {
+        table.add_row(calculation_row(
+            result,
+            show_to_end_time,
+            show_end_portal_pos,
+        ));
     }
 
     println!("{table}");
     println!(
         "{}",
-        green_text(&format!(
-            "Calculation finished. Showing up to {max_output_count} of {result_count} result(s)."
-        ))
+        green_text(&format!("Calculation finished. {result_count} result(s)."))
     );
 }

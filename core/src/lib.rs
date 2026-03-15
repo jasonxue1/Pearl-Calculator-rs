@@ -2,64 +2,57 @@ use nalgebra::Vector2;
 
 use crate::{
     config::Config,
-    convert::num_to_motion,
     pearl::{Dimension, SimulationReport},
-    util::{FtlConfigOutput, MaxTnt, generate_output_config_nether, sort_output},
+    util::{Array, FtlConfigOutput, TNTNum, TNTNumRB, Time},
 };
 
 /// num means tnt counts in (1,1) and (1,-1)
 pub mod config;
-pub mod convert;
 pub mod pearl;
 pub mod util;
 
 pub fn simulation(
     config: &Config,
-    tnt_num: Vector2<i64>,
-    time: u64,
-    to_end_time: u64,
+    tnt_num: TNTNum,
+    time: Time,
+    to_end_time: Option<Time>,
 ) -> SimulationReport {
     let mut pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
-    let tnt_motion = num_to_motion(tnt_num, motion_per_tnt);
+    let tnt_motion = Array::from_num(tnt_num, motion_per_tnt);
     pearl.simulation(tnt_motion, time, to_end_time)
 }
 
 pub fn calculation(
     config: &Config,
-    max_tnt: Option<MaxTnt>,
+    max_tnt: Option<TNTNumRB>,
     target_point: Vector2<i64>,
-    error: u64,
-    max_time: u64,
-    dimension: Dimension,
+    max_error: Option<f64>,
+    max_time: Option<Time>,
+    dimension: Option<Dimension>,
+    show_first: Option<usize>,
 ) -> Vec<FtlConfigOutput> {
     let pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
     let max_tnt = max_tnt.unwrap_or(config.max_tnt);
-    match dimension {
-        Dimension::Nether => {
-            let res = pearl.calculation_nether(target_point, motion_per_tnt, max_time);
+    let max_error = max_error.unwrap_or(config.max_error);
+    let show_first = show_first.unwrap_or(config.show_first);
+    let dimension = dimension.unwrap_or(Dimension::Nether);
+    let max_time = max_time.unwrap_or(config.max_time);
 
-            let mut result: Vec<FtlConfigOutput> = res
-                .iter()
-                .filter_map(|&x| {
-                    let new = generate_output_config_nether(config, x, target_point);
-                    let out = FtlConfigOutput::Nether(new);
-                    if out.get_error() <= error as f64
-                        && new.rb.count.x <= max_tnt.red as i64
-                        && new.rb.count.y <= max_tnt.blue as i64
-                    {
-                        Some(out)
-                    } else {
-                        None
-                    }
-                })
-                .collect();
-            sort_output(&mut result);
-            result
-        }
-        _ => {
-            todo!()
-        }
-    }
+    let res = pearl.calculation(target_point, motion_per_tnt, max_time, dimension);
+
+    let mut result: Vec<FtlConfigOutput> = res
+        .iter()
+        .filter_map(|&x| {
+            let new = x.generate(config, target_point);
+            if new.error <= max_error && new.rb.is_available(max_tnt) {
+                Some(new)
+            } else {
+                None
+            }
+        })
+        .collect();
+    FtlConfigOutput::sort_and_get_top(&mut result, show_first);
+    result
 }
