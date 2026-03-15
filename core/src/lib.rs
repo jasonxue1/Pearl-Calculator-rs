@@ -1,25 +1,21 @@
 use nalgebra::Vector2;
 
-use crate::{
-    config::Config,
-    pearl::{Dimension, SimulationReport},
-    util::{Array, FtlConfigOutput, TNTNum, TNTNumRB, Time},
-};
+pub use crate::basic::*;
 
-/// num means tnt counts in (1,1) and (1,-1)
-pub mod config;
-pub mod pearl;
-pub mod util;
+mod basic;
+mod pearl;
+mod util;
 
 pub fn simulation(
     config: &Config,
-    tnt_num: TNTNum,
-    time: Time,
+    rb: RB,
+    time: Option<Time>,
     to_end_time: Option<Time>,
 ) -> SimulationReport {
+    let time = time.unwrap_or(config.max_time);
     let mut pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
-    let tnt_motion = Array::from_num(tnt_num, motion_per_tnt);
+    let tnt_motion = Array::from_num(rb.to_num(config.directions), motion_per_tnt);
     pearl.simulation(tnt_motion, time, to_end_time)
 }
 
@@ -31,7 +27,7 @@ pub fn calculation(
     max_time: Option<Time>,
     dimension: Option<Dimension>,
     show_first: Option<usize>,
-) -> Vec<FtlConfigOutput> {
+) -> Vec<CalculationReport> {
     let pearl = config.pearl;
     let motion_per_tnt = config.motion_per_tnt;
     let max_tnt = max_tnt.unwrap_or(config.max_tnt);
@@ -42,7 +38,7 @@ pub fn calculation(
 
     let res = pearl.calculation(target_point, motion_per_tnt, max_time, dimension);
 
-    let mut result: Vec<FtlConfigOutput> = res
+    let mut result: Vec<CalculationReport> = res
         .iter()
         .filter_map(|&x| {
             let new = x.generate(config, target_point);
@@ -53,6 +49,6 @@ pub fn calculation(
             }
         })
         .collect();
-    FtlConfigOutput::sort_and_get_top(&mut result, show_first);
+    CalculationReport::sort_and_get_top(&mut result, show_first);
     result
 }

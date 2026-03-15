@@ -1,70 +1,44 @@
-use std::ops::{Add, AddAssign};
+use std::{
+    fmt,
+    ops::{Add, AddAssign},
+};
 
 use itertools::Itertools;
 use minecraft_mth as mth;
-use nalgebra::{Matrix2, Vector2, Vector3, matrix, vector};
+use nalgebra::{Matrix, Matrix2, Vector2, matrix, vector};
 use serde::{Deserialize, Serialize};
 
-use crate::{
-    config::{Config, MotionPerTnt},
-    simulation,
-};
+use crate::*;
 
 const G: f64 = 0.03;
 const D: f64 = 0.99_f32 as f64;
 
-#[derive(Debug, Clone, Copy)]
-pub struct FtlConfigOutput {
-    pub rb: RB,
-    pub end_time: Time,
-    pub error: f64,
-    pub final_pos: Array,
-    pub to_end_time: Option<Time>,
-    pub end_portal_pos: Option<Array>,
+impl fmt::Display for Dimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Overworld => "Overworld",
+            Self::Nether => "Nether",
+            Self::End => "End",
+        };
+        write!(f, "{}", s)
+    }
 }
 
 #[derive(Debug, Clone, Copy)]
-pub struct FtlConfig {
+pub(crate) struct FtlConfig {
     pub tnt_num: TNTNum,
     pub end_time: Time,
     pub to_end_time: Option<Time>,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct TNTNumRB {
-    pub red: u64,
-    pub blue: u64,
-}
-
-#[derive(Clone, Copy, Debug)]
-pub struct RB {
-    pub num: TNTNumRB,
-    pub direction: usize,
-}
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct TNTNum(pub Vector2<i64>);
+pub(crate) struct TNTNum(pub Vector2<i64>);
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct Array(pub Vector3<f64>);
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct Polar {
+struct Polar {
     pub r: f64,
     pub theta: f64,
 }
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy, Default)]
-#[serde(default)]
-pub struct Yaw(pub f32);
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct Time(pub u64);
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct Direction(pub Matrix2<i64>);
-
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
-pub struct Directions(pub [Direction; 4]);
 
 impl From<TNTNumRB> for Vector2<i64> {
     fn from(value: TNTNumRB) -> Self {
@@ -82,12 +56,12 @@ impl From<Vector2<i64>> for TNTNumRB {
 }
 
 impl Array {
-    pub fn distance_xz(self, other: Self) -> f64 {
+    fn distance_xz(self, other: Self) -> f64 {
         let square = (self.0.x - other.0.x).powi(2) + (self.0.x - other.0.x).powi(2);
         square.sqrt()
     }
 
-    pub fn to_nums(
+    pub(crate) fn to_nums(
         self,
         motion_per_tnt: MotionPerTnt,
         start_time: Time,
@@ -103,16 +77,16 @@ impl Array {
             .collect()
     }
 
-    pub fn array_to(self, other: Self) -> Self {
+    pub(crate) fn array_to(self, other: Self) -> Self {
         Self(other.0 - self.0)
     }
 
-    pub fn tick(&mut self) {
+    pub(crate) fn tick(&mut self) {
         self.0.y -= G;
         self.0 *= D;
     }
 
-    pub fn from_num(num: TNTNum, motion_per_tnt: MotionPerTnt) -> Self {
+    pub(crate) fn from_num(num: TNTNum, motion_per_tnt: MotionPerTnt) -> Self {
         let total_count = num.0.x.abs() + num.0.y.abs();
         let tnt_count = matrix![
             1,1;
@@ -130,7 +104,7 @@ impl Array {
 }
 
 impl Yaw {
-    pub fn lerp_rotation(&mut self, motion: Array) {
+    pub(crate) fn lerp_rotation(&mut self, motion: Array) {
         let target_yaw = Yaw(mth::atan2(motion.0.x, motion.0.z) as f32 * mth::RAD_TO_DEG);
         self.0 = mth::lerp(
             0.2,
@@ -146,40 +120,57 @@ impl AddAssign<Array> for Array {
     }
 }
 
-impl TNTNum {
-    pub fn from_rb(rb: RB, directions: Directions) -> Self {
-        let base = directions.0[rb.direction].0;
-        Self(base * Vector2::from(rb.num))
-    }
-}
-
 impl RB {
-    pub fn from_num(num: TNTNum, directions: Directions) -> Self {
+    fn from_num(num: TNTNum, directions: Directions) -> Self {
         let direction_type = if num.0.x > 0 {
             if num.0.y > 0 { 0 } else { 1 }
         } else {
             if num.0.y > 0 { 2 } else { 3 }
         };
         let direction_num = directions.resolve()[direction_type];
-        let direction = directions.0[direction_num];
+        let direction = directions.0[direction_num].match_direction();
         RB {
-            num: TNTNumRB::from(direction.0.transpose() * num.0),
+            num: TNTNumRB::from(direction.transpose() * num.0),
             direction: direction_num,
         }
     }
 
-    pub fn is_available(self, max: TNTNumRB) -> bool {
+    pub(crate) fn to_num(self, directions: Directions) -> TNTNum {
+        let base = directions.0[self.direction].match_direction();
+        TNTNum(base * Vector2::from(self.num))
+    }
+
+    pub(crate) fn is_available(self, max: TNTNumRB) -> bool {
         self.num.is_available(max)
     }
 }
 
+fn match_direction(input: [i8; 2]) -> Vector2<i64> {
+    match input {
+        [1, 1] => vector![1, 0],
+        [-1, -1] => vector![-1, 0],
+        [1, -1] => vector![0, 1],
+        [-1, 1] => vector![0, -1],
+        _ => panic!(),
+    }
+}
+
+impl Direction {
+    fn match_direction(self) -> Matrix2<i64> {
+        let red = match_direction(self.red);
+        let blue = match_direction(self.blue);
+        Matrix::from_columns(&[red, blue])
+    }
+}
+
 impl Directions {
-    pub fn resolve(self) -> [usize; 4] {
+    fn resolve(self) -> [usize; 4] {
         let mut indices = [0; 4];
         let mut seen = [false; 4];
 
         for (i, m) in self.0.iter().enumerate() {
-            let sum = m.0.column(0) + m.0.column(1);
+            let matrix = m.match_direction();
+            let sum = matrix.column(0) + matrix.column(1);
             let idx = match (sum.x, sum.y) {
                 (1, 1) => 0,
                 (1, -1) => 1,
@@ -200,13 +191,13 @@ impl Directions {
 }
 
 impl FtlConfig {
-    pub fn generate(self, config: &Config, target_point: Vector2<i64>) -> FtlConfigOutput {
-        let simulation_report = simulation(config, self.tnt_num, self.end_time, self.to_end_time);
+    pub(crate) fn generate(self, config: &Config, target_point: Vector2<i64>) -> CalculationReport {
+        let rb = RB::from_num(self.tnt_num, config.directions);
+        let simulation_report = simulation(config, rb, Some(self.end_time), self.to_end_time);
 
         let final_pos = simulation_report.final_pos;
 
-        let rb = RB::from_num(self.tnt_num, config.directions);
-        FtlConfigOutput {
+        CalculationReport {
             rb,
             end_time: self.end_time,
             error: final_pos.distance_xz(target_point.into()),
@@ -217,8 +208,8 @@ impl FtlConfig {
     }
 }
 
-impl FtlConfigOutput {
-    pub fn sort_and_get_top(v: &mut Vec<Self>, show_first: usize) {
+impl CalculationReport {
+    pub(crate) fn sort_and_get_top(v: &mut Vec<Self>, show_first: usize) {
         v.sort_unstable_by(|&a, &b| {
             a.end_time
                 .0
@@ -242,7 +233,7 @@ impl From<Vector2<i64>> for Array {
 }
 
 impl Time {
-    pub fn range(Self(a): Self, Self(b): Self) -> impl Iterator<Item = Self> {
+    pub(crate) fn range(Self(a): Self, Self(b): Self) -> impl Iterator<Item = Self> {
         (a..b).map(Time)
     }
 }
@@ -255,7 +246,7 @@ impl Add<u64> for Time {
 }
 
 impl TNTNumRB {
-    pub fn is_available(self, max: Self) -> bool {
+    fn is_available(self, max: Self) -> bool {
         self.red <= max.red && self.blue <= max.blue
     }
 }

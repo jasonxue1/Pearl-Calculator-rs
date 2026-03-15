@@ -4,10 +4,7 @@ use comfy_table::{
     Attribute, Cell, CellAlignment, Color, ContentArrangement, Table,
     modifiers::UTF8_ROUND_CORNERS, presets::UTF8_FULL,
 };
-use pearl_calculator::{
-    pearl::{Dimension, Pearl, SimulationReport},
-    util::FtlConfigOutput,
-};
+use pearl_calculator::{CalculationReport, Dimension, Pearl, SimulationReport};
 
 const ANSI_RESET: &str = "\x1b[0m";
 const ANSI_GREEN: &str = "\x1b[1;32m";
@@ -132,7 +129,7 @@ fn empty_cell() -> Cell {
 }
 
 fn calculation_row(
-    result: FtlConfigOutput,
+    result: CalculationReport,
     show_to_end_time: bool,
     show_end_portal_pos: bool,
 ) -> Vec<Cell> {
@@ -174,7 +171,7 @@ fn calculation_row(
     row
 }
 
-pub fn print_calculation_report(results: Vec<FtlConfigOutput>) {
+pub fn print_calculation_report(results: Vec<CalculationReport>) {
     if results.is_empty() {
         println!("{}", green_text("No calculation results."));
         return;

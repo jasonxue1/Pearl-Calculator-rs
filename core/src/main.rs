@@ -1,17 +1,15 @@
 mod output;
-use std::{error::Error, fs, io, path::PathBuf};
+use std::{error::Error, fs, path::PathBuf};
 
 use crate::output::{print_calculation_report, print_simulation_report};
-use clap::{ArgGroup, Args, Parser, Subcommand};
-use pearl_calculator::{
-    calculation,
-    config::{Config, Root},
-    pearl::Dimension,
-    simulation,
-    util::{RB, TNTNum, TNTNumRB, Time},
+use clap::{
+    Args, Parser, Subcommand,
+    builder::styling::{AnsiColor, Effects, Styles},
 };
+use pearl_calculator::{Config, Dimension, RB, Root, TNTNumRB, Time, calculation, simulation};
 
 #[derive(Parser)]
+#[command(styles = cli_styles())]
 struct Cli {
     #[command(subcommand)]
     command: Command,
@@ -24,40 +22,29 @@ enum Command {
 }
 
 #[derive(Args)]
-#[command(group(
-    ArgGroup::new("input_mode")
-        .required(true)
-        .multiple(false)
-        .args(["num", "rb"])
-))]
 struct SimulationArgs {
-    #[arg(long = "config")]
+    #[arg(
+        short = 'c',
+        long = "config",
+        help = "\u{1b}[33m(Required)\u{1b}[0m Config file path"
+    )]
     config_file_path: PathBuf,
-    #[arg(long)]
-    time: u64,
-    #[arg(long = "to-end-time", default_value_t = 0)]
-    to_end_time: u64,
-    #[arg(
-        long,
-        num_args = 2,
-        value_names = ["SE", "NE"],
-        allow_hyphen_values = true,
-        group = "input_mode"
-    )]
-    num: Option<Vec<i64>>,
-    #[arg(
-        long,
-        num_args = 3,
-        value_names = ["DIRECTION", "RED", "BLUE"],
-        allow_hyphen_values = true,
-        group = "input_mode"
-    )]
-    rb: Option<Vec<i64>>,
+    #[arg(short = 't', long = "time", help = "Simulation time")]
+    time: Option<u64>,
+    #[arg(short = 'e', long = "to-end-time")]
+    to_end_time: Option<u64>,
+    direction: usize,
+    red: u64,
+    blue: u64,
 }
 
 #[derive(Args)]
 struct CalculationArgs {
-    #[arg(long = "config")]
+    #[arg(
+        short = 'c',
+        long = "config",
+        help = "\u{1b}[33m(Required)\u{1b}[0m Config file path"
+    )]
     config_file_path: PathBuf,
     #[arg(
         long = "max-tnt",
@@ -66,52 +53,29 @@ struct CalculationArgs {
         help = "Zero values uses config max_tnt, one value uses the same red/blue limit"
     )]
     max_tnt: Option<Vec<u64>>,
-    #[arg(
-        long = "target-point",
-        num_args = 2,
-        value_names = ["X", "Z"],
-        required = true,
-        allow_hyphen_values = true
-    )]
-    target_point: Vec<i64>,
+    #[arg(allow_hyphen_values = true)]
+    x: i64,
+    #[arg(allow_hyphen_values = true)]
+    z: i64,
     #[arg(long = "max-error")]
     max_error: Option<f64>,
-    #[arg(long = "max-time")]
+    #[arg(short = 't', long = "max-time")]
     max_time: Option<u64>,
-    #[arg(long = "dimension", value_parser = parse_dimension)]
+    #[arg(short = 'd', long = "dimension", value_parser = parse_dimension)]
     dimension: Option<Dimension>,
     #[arg(long = "first")]
     first: Option<usize>,
 }
 
-fn parse_num(values: Vec<i64>) -> [i64; 2] {
-    [values[0], values[1]]
-}
-
-fn parse_rb(values: Vec<i64>) -> Result<RB, io::Error> {
-    let direction = usize::try_from(values[0]).map_err(|_| {
-        io::Error::new(
-            io::ErrorKind::InvalidInput,
-            "--rb <DIRECTION> must be a non-negative integer",
-        )
-    })?;
-    Ok(RB {
-        num: TNTNumRB {
-            red: u64::try_from(values[1]).map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "--rb <RED> must be non-negative",
-                )
-            })?,
-            blue: u64::try_from(values[2]).map_err(|_| {
-                io::Error::new(
-                    io::ErrorKind::InvalidInput,
-                    "--rb <BLUE> must be non-negative",
-                )
-            })?,
-        },
-        direction,
-    })
+fn cli_styles() -> Styles {
+    Styles::styled()
+        .header(AnsiColor::Yellow.on_default() | Effects::BOLD)
+        .usage(AnsiColor::Yellow.on_default() | Effects::BOLD)
+        .literal(AnsiColor::Green.on_default() | Effects::BOLD)
+        .placeholder(AnsiColor::Cyan.on_default())
+        .valid(AnsiColor::Green.on_default())
+        .invalid(AnsiColor::Red.on_default() | Effects::BOLD)
+        .error(AnsiColor::Red.on_default() | Effects::BOLD)
 }
 
 fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Option<TNTNumRB> {
@@ -127,10 +91,6 @@ fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Option<TNTNumRB> {
         }),
         _ => unreachable!("clap enforces zero, one, or two --max-tnt-num values"),
     }
-}
-
-fn parse_target_point(values: Vec<i64>) -> [i64; 2] {
-    [values[0], values[1]]
 }
 
 fn parse_dimension(value: &str) -> Result<Dimension, String> {
@@ -155,30 +115,24 @@ fn main() -> Result<(), Box<dyn Error>> {
         Command::Simulation(args) => {
             let config = load_config(args.config_file_path)?;
 
-            let num: TNTNum = match (args.num, args.rb) {
-                (Some(num), None) => {
-                    let [se, ne] = parse_num(num);
-                    TNTNum(nalgebra::vector![se, ne])
-                }
-                (None, Some(rb)) => TNTNum::from_rb(parse_rb(rb)?, config.directions),
-                _ => unreachable!("clap enforces exactly one input mode"),
+            let rb = RB {
+                num: TNTNumRB {
+                    red: args.red,
+                    blue: args.blue,
+                },
+                direction: args.direction,
             };
-            let simulation_report = simulation(
-                &config,
-                num,
-                Time(args.time),
-                Some(args.to_end_time).filter(|&x| x != 0).map(Time),
-            );
+            let simulation_report =
+                simulation(&config, rb, args.time.map(Time), args.to_end_time.map(Time));
             print_simulation_report(simulation_report);
         }
         Command::Calculation(args) => {
             let config = load_config(args.config_file_path)?;
             let max_tnt = parse_max_tnt_num(args.max_tnt);
-            let [x, z] = parse_target_point(args.target_point);
             let calculation_report = calculation(
                 &config,
                 max_tnt,
-                nalgebra::vector![x, z],
+                nalgebra::vector![args.x, args.z],
                 args.max_error,
                 args.max_time.map(Time),
                 args.dimension,

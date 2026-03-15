@@ -1,58 +1,15 @@
-use std::fmt;
-
-use crate::{
-    config::MotionPerTnt,
-    util::{Array, FtlConfig, Time, Yaw},
-};
+use crate::util::FtlConfig;
+use crate::*;
 use minecraft_mth as mth;
 use nalgebra::{Vector2, matrix, vector};
-use serde::{Deserialize, Serialize};
-use serde_repr::{Deserialize_repr, Serialize_repr};
 
 const END_SPAWN_POSTION: Array = Array(vector![100.5, 50.0, 0.5]);
 const END_SPAWN_YAW: Yaw = Yaw(90.0);
 
-#[derive(Serialize, Deserialize, Debug, Clone, Copy)]
-pub struct Pearl {
-    pub position: Array,
-    pub motion: Array,
-    #[serde(default)]
-    pub yaw: Yaw,
-    #[serde(default)]
-    pub dimension: Dimension,
-}
-
-#[derive(Serialize_repr, Deserialize_repr, Default, Debug, PartialEq, Clone, Copy)]
-#[repr(i8)]
-pub enum Dimension {
-    Overworld = 0,
-    #[default]
-    Nether = -1,
-    End = 1,
-}
-
-impl fmt::Display for Dimension {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let s = match self {
-            Self::Overworld => "Overworld",
-            Self::Nether => "Nether",
-            Self::End => "End",
-        };
-        write!(f, "{}", s)
-    }
-}
-
-pub enum Teleport {
+enum Teleport {
     None,
-    NetherPortal,
+    // NetherPortal,
     EndPortal,
-}
-
-#[derive(Debug)]
-pub struct SimulationReport {
-    pub history: Vec<Pearl>,
-    pub final_pos: Array,
-    pub end_portal_pos: Option<Array>,
 }
 
 impl Pearl {
@@ -64,18 +21,20 @@ impl Pearl {
         self.yaw.lerp_rotation(self.motion);
     }
 
-    pub fn tick(&mut self, teleport: Teleport) {
+    fn tick(&mut self, teleport: Teleport) {
         self.motion.tick();
         self.lerp_rotation();
 
         match teleport {
             Teleport::None => self.move_motion(),
-            Teleport::EndPortal if self.dimension != Dimension::End => {
-                self.rotate_motion(END_SPAWN_YAW);
-                self.dimension = Dimension::End;
-                self.position = END_SPAWN_POSTION;
-            }
-            _ => todo!(),
+            Teleport::EndPortal => match self.dimension {
+                Dimension::End => todo!(),
+                _ => {
+                    self.rotate_motion(END_SPAWN_YAW);
+                    self.dimension = Dimension::End;
+                    self.position = END_SPAWN_POSTION;
+                }
+            },
         }
     }
 
@@ -93,7 +52,7 @@ impl Pearl {
         self.motion.0 = r * self.motion.0;
     }
 
-    pub fn simulation(
+    pub(crate) fn simulation(
         &mut self,
         tnt_motion: Array,
         Time(time): Time,
@@ -128,7 +87,7 @@ impl Pearl {
         }
     }
 
-    pub fn calculation(
+    pub(crate) fn calculation(
         self,
         target_point: Vector2<i64>,
         motion_per_tnt: MotionPerTnt,
