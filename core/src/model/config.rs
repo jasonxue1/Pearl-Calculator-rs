@@ -20,11 +20,13 @@ pub struct Root {
     config: Config,
 }
 
-impl From<Root> for Config {
-    fn from(value: Root) -> Self {
+impl TryFrom<Root> for Config {
+    type Error = PearlError;
+
+    fn try_from(value: Root) -> Result<Self, Self::Error> {
         match value.version {
-            1 => value.config,
-            _ => panic!(),
+            1 => Ok(value.config),
+            _ => Err(PearlError::UnsupportedConfigVersion(value.version)),
         }
     }
 }
@@ -57,4 +59,12 @@ pub struct TNTNumCode(pub Vec<bool>);
 pub struct RB {
     pub num: TNTNumRB,
     pub direction: usize,
+}
+
+impl Config {
+    pub fn check(&self) -> Result<(), PearlError> {
+        self.directions.resolve()?;
+        self.code.check()?;
+        Ok(())
+    }
 }

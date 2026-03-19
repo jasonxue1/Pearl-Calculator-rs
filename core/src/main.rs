@@ -6,7 +6,9 @@ use clap::{
     Args, Parser, Subcommand,
     builder::styling::{AnsiColor, Effects, Styles},
 };
-use pearl_calculator::{Config, Dimension, RB, Root, TNTNumRB, Time, calculation, simulation};
+use pearl_calculator::{
+    Config, Dimension, PearlError, RB, Root, TNTNumRB, Time, calculation, simulation,
+};
 
 #[derive(Parser)]
 #[command(styles = cli_styles())]
@@ -78,18 +80,18 @@ fn cli_styles() -> Styles {
         .error(AnsiColor::Red.on_default() | Effects::BOLD)
 }
 
-fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Option<TNTNumRB> {
+fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Result<Option<TNTNumRB>, PearlError> {
     match values.as_deref() {
-        None | Some([]) => None,
-        Some([value]) => Some(TNTNumRB {
+        None | Some([]) => Ok(None),
+        Some([value]) => Ok(Some(TNTNumRB {
             red: *value,
             blue: *value,
-        }),
-        Some([red, blue]) => Some(TNTNumRB {
+        })),
+        Some([red, blue]) => Ok(Some(TNTNumRB {
             red: *red,
             blue: *blue,
-        }),
-        _ => unreachable!("clap enforces zero, one, or two --max-tnt-num values"),
+        })),
+        Some(values) => Err(PearlError::InvalidMaxTntArgCount(values.len())),
     }
 }
 
@@ -105,7 +107,7 @@ fn parse_dimension(value: &str) -> Result<Dimension, String> {
 fn load_config(path: PathBuf) -> Result<Config, Box<dyn Error>> {
     let config_file = fs::read_to_string(path)?;
     let root: Root = serde_json::from_str(&config_file)?;
-    Ok(Config::from(root))
+    Ok(Config::try_from(root)?)
 }
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -123,12 +125,12 @@ fn main() -> Result<(), Box<dyn Error>> {
                 direction: args.direction,
             };
             let simulation_report =
-                simulation(&config, rb, args.time.map(Time), args.to_end_time.map(Time));
+                simulation(&config, rb, args.time.map(Time), args.to_end_time.map(Time))?;
             print_simulation_report(simulation_report);
         }
         Command::Calculation(args) => {
             let config = load_config(args.config_file_path)?;
-            let max_tnt = parse_max_tnt_num(args.max_tnt);
+            let max_tnt = parse_max_tnt_num(args.max_tnt)?;
             let calculation_report = calculation(
                 &config,
                 max_tnt,
@@ -137,7 +139,7 @@ fn main() -> Result<(), Box<dyn Error>> {
                 args.max_time.map(Time),
                 args.dimension,
                 args.first,
-            );
+            )?;
             print_calculation_report(calculation_report);
         }
     }

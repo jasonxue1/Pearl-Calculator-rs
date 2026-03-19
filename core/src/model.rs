@@ -1,15 +1,14 @@
 pub use code::*;
 pub use config::*;
-pub use convert::*;
 use nalgebra::Vector3;
 pub use pearl::*;
 pub use report::*;
 use serde::{Deserialize, Serialize};
 use serde_repr::{Deserialize_repr, Serialize_repr};
+use std::{fmt, ops::Add};
 
 mod code;
 mod config;
-mod convert;
 mod pearl;
 mod report;
 
@@ -27,3 +26,28 @@ pub enum Dimension {
 
 #[derive(Debug, Deserialize, Serialize, Clone, Copy)]
 pub struct Time(pub u64);
+
+impl fmt::Display for Dimension {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let s = match self {
+            Self::Overworld => "Overworld",
+            Self::Nether => "Nether",
+            Self::End => "End",
+        };
+        write!(f, "{}", s)
+    }
+}
+
+impl Time {
+    pub(crate) fn range(Self(a): Self, Self(b): Self) -> impl Iterator<Item = Self> {
+        (a..b).map(Time)
+    }
+}
+
+impl Add<u64> for Time {
+    type Output = Self;
+
+    fn add(self, rhs: u64) -> Self {
+        Time(self.0 + rhs)
+    }
+}

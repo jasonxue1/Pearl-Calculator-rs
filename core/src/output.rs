@@ -93,7 +93,7 @@ fn green_text(text: &str) -> String {
     }
 }
 
-pub fn print_simulation_report(simulation_report: SimulationReport) {
+pub(crate) fn print_simulation_report(simulation_report: SimulationReport) {
     let final_line = format_final_position(&simulation_report);
     let mut history = new_table();
     history.set_header(vec![
@@ -171,7 +171,7 @@ fn calculation_row(
     row
 }
 
-pub fn print_calculation_report(results: Vec<CalculationReport>) {
+pub(crate) fn print_calculation_report(results: Vec<CalculationReport>) {
     if results.is_empty() {
         println!("{}", green_text("No calculation results."));
         return;

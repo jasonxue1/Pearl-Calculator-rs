@@ -7,6 +7,8 @@ pub enum ConvertError {
     CodeLengthMismatch { expected: usize, actual: usize },
     InvalidCapBit { bit: usize, max: usize },
     DuplicateCapBit { bit: usize },
+    OverlappingCapBit { bit: usize },
+    MixedCapKinds,
     DirectionOutOfRange { value: u64 },
     ValueOverflow,
     NoExactEncoding { rb: RB },
@@ -27,6 +29,12 @@ impl fmt::Display for ConvertError {
             Self::DuplicateCapBit { bit } => {
                 write!(f, "duplicate cap bit index in one cap group: {bit}")
             }
+            Self::OverlappingCapBit { bit } => {
+                write!(f, "cap bit index overlaps across groups: {bit}")
+            }
+            Self::MixedCapKinds => {
+                write!(f, "all bits in one cap group must have the same type")
+            }
             Self::DirectionOutOfRange { value } => {
                 write!(f, "direction value out of range: {value} (must be 0..=3)")
             }
@@ -44,7 +52,7 @@ impl fmt::Display for ConvertError {
 
 impl std::error::Error for ConvertError {}
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SlotKind {
     Red,
     Blue,
@@ -61,6 +69,7 @@ struct Slot {
 struct CapGroup {
     bits: Vec<usize>,
     cap: u64,
+    kind: SlotKind,
 }
 
 #[derive(Debug, Clone)]
@@ -92,9 +101,11 @@ fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
 
     let slot_len = slots.len();
     let mut caps = Vec::with_capacity(rule.extra.caps.len());
+    let mut used_by_any_cap = vec![false; slot_len];
     for cap in &rule.extra.caps {
         let mut bits = Vec::with_capacity(cap.bits.len());
         let mut seen = vec![false; slot_len];
+        let mut kind = None;
         for &bit in &cap.bits {
             if bit == 0 || bit > slot_len {
                 return Err(ConvertError::InvalidCapBit { bit, max: slot_len });
@@ -103,10 +114,26 @@ fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
             if seen[idx] {
                 return Err(ConvertError::DuplicateCapBit { bit });
             }
+            if used_by_any_cap[idx] {
+                return Err(ConvertError::OverlappingCapBit { bit });
+            }
             seen[idx] = true;
+            used_by_any_cap[idx] = true;
+            let this_kind = slots[idx].kind;
+            if let Some(prev) = kind {
+                if prev != this_kind {
+                    return Err(ConvertError::MixedCapKinds);
+                }
+            } else {
+                kind = Some(this_kind);
+            }
             bits.push(idx);
         }
-        caps.push(CapGroup { bits, cap: cap.cap });
+        caps.push(CapGroup {
+            bits,
+            cap: cap.cap,
+            kind: kind.unwrap_or(SlotKind::Red),
+        });
     }
 
     let mut slot_to_caps = vec![Vec::new(); slot_len];
@@ -123,48 +150,6 @@ fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
     })
 }
 
-fn normalize_bits(compiled: &CompiledRule, bits: &mut [bool]) {
-    loop {
-        let mut changed = false;
-
-        for cap in &compiled.caps {
-            let mut enabled: Vec<usize> =
-                cap.bits.iter().copied().filter(|&idx| bits[idx]).collect();
-            if enabled.is_empty() {
-                continue;
-            }
-
-            let sum: u64 = enabled.iter().map(|&idx| compiled.slots[idx].count).sum();
-            if sum <= cap.cap {
-                continue;
-            }
-
-            // Keep larger count bits first, then smaller index for deterministic behavior.
-            enabled.sort_unstable_by(|&a, &b| {
-                compiled.slots[b]
-                    .count
-                    .cmp(&compiled.slots[a].count)
-                    .then_with(|| a.cmp(&b))
-            });
-
-            let mut kept_sum = 0_u64;
-            for idx in enabled {
-                let count = compiled.slots[idx].count;
-                if kept_sum.saturating_add(count) <= cap.cap {
-                    kept_sum += count;
-                } else if bits[idx] {
-                    bits[idx] = false;
-                    changed = true;
-                }
-            }
-        }
-
-        if !changed {
-            break;
-        }
-    }
-}
-
 fn ensure_code_len(compiled: &CompiledRule, code: &TNTNumCode) -> Result<(), ConvertError> {
     let expected = compiled.slots.len();
     let actual = code.0.len();
@@ -174,21 +159,11 @@ fn ensure_code_len(compiled: &CompiledRule, code: &TNTNumCode) -> Result<(), Con
     Ok(())
 }
 
-pub fn normalize_code(rule: &CodeRule, code: TNTNumCode) -> Result<TNTNumCode, ConvertError> {
-    let compiled = compile_rule(rule)?;
-    ensure_code_len(&compiled, &code)?;
-
-    let mut bits = code.0;
-    normalize_bits(&compiled, &mut bits);
-    Ok(TNTNumCode(bits))
-}
-
 pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError> {
     let compiled = compile_rule(rule)?;
     ensure_code_len(&compiled, &code)?;
 
-    let mut bits = code.0;
-    normalize_bits(&compiled, &mut bits);
+    let bits = code.0;
 
     let mut red = 0_u64;
     let mut blue = 0_u64;
@@ -196,6 +171,9 @@ pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError>
 
     for (idx, slot) in compiled.slots.iter().enumerate() {
         if !bits[idx] {
+            continue;
+        }
+        if !compiled.slot_to_caps[idx].is_empty() {
             continue;
         }
 
@@ -213,6 +191,33 @@ pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError>
             SlotKind::Direction => {
                 direction = direction
                     .checked_add(slot.count)
+                    .ok_or(ConvertError::ValueOverflow)?
+            }
+        }
+    }
+
+    for cap in &compiled.caps {
+        let sum: u64 = cap
+            .bits
+            .iter()
+            .filter(|&&idx| bits[idx])
+            .map(|&idx| compiled.slots[idx].count)
+            .sum();
+        let clamped = sum.min(cap.cap);
+        match cap.kind {
+            SlotKind::Red => {
+                red = red
+                    .checked_add(clamped)
+                    .ok_or(ConvertError::ValueOverflow)?
+            }
+            SlotKind::Blue => {
+                blue = blue
+                    .checked_add(clamped)
+                    .ok_or(ConvertError::ValueOverflow)?
+            }
+            SlotKind::Direction => {
+                direction = direction
+                    .checked_add(clamped)
                     .ok_or(ConvertError::ValueOverflow)?
             }
         }
@@ -255,44 +260,33 @@ struct Remaining {
     direction: u64,
 }
 
-fn dfs_exact(
-    idx: usize,
-    compiled: &CompiledRule,
-    suffix_red: &[u64],
-    suffix_blue: &[u64],
-    suffix_direction: &[u64],
-    remaining: Remaining,
-    cap_used: &mut [u64],
-    bits: &mut [bool],
-) -> bool {
-    if remaining.red > suffix_red[idx]
-        || remaining.blue > suffix_blue[idx]
-        || remaining.direction > suffix_direction[idx]
+struct DfsCtx<'a> {
+    compiled: &'a CompiledRule,
+    suffix_red: &'a [u64],
+    suffix_blue: &'a [u64],
+    suffix_direction: &'a [u64],
+    cap_used: &'a mut [u64],
+    bits: &'a mut [bool],
+}
+
+fn dfs_exact(ctx: &mut DfsCtx<'_>, idx: usize, remaining: Remaining) -> bool {
+    if remaining.red > ctx.suffix_red[idx]
+        || remaining.blue > ctx.suffix_blue[idx]
+        || remaining.direction > ctx.suffix_direction[idx]
     {
         return false;
     }
 
-    if idx == compiled.slots.len() {
+    if idx == ctx.compiled.slots.len() {
         return remaining.red == 0 && remaining.blue == 0 && remaining.direction == 0;
     }
 
-    let slot = compiled.slots[idx];
+    let slot = ctx.compiled.slots[idx];
     let next_remaining = match slot.kind {
         SlotKind::Red => Remaining {
             red: match remaining.red.checked_sub(slot.count) {
                 Some(v) => v,
-                None => {
-                    return dfs_exact(
-                        idx + 1,
-                        compiled,
-                        suffix_red,
-                        suffix_blue,
-                        suffix_direction,
-                        remaining,
-                        cap_used,
-                        bits,
-                    );
-                }
+                None => return dfs_exact(ctx, idx + 1, remaining),
             },
             blue: remaining.blue,
             direction: remaining.direction,
@@ -301,18 +295,7 @@ fn dfs_exact(
             red: remaining.red,
             blue: match remaining.blue.checked_sub(slot.count) {
                 Some(v) => v,
-                None => {
-                    return dfs_exact(
-                        idx + 1,
-                        compiled,
-                        suffix_red,
-                        suffix_blue,
-                        suffix_direction,
-                        remaining,
-                        cap_used,
-                        bits,
-                    );
-                }
+                None => return dfs_exact(ctx, idx + 1, remaining),
             },
             direction: remaining.direction,
         },
@@ -321,65 +304,36 @@ fn dfs_exact(
             blue: remaining.blue,
             direction: match remaining.direction.checked_sub(slot.count) {
                 Some(v) => v,
-                None => {
-                    return dfs_exact(
-                        idx + 1,
-                        compiled,
-                        suffix_red,
-                        suffix_blue,
-                        suffix_direction,
-                        remaining,
-                        cap_used,
-                        bits,
-                    );
-                }
+                None => return dfs_exact(ctx, idx + 1, remaining),
             },
         },
     };
 
     let mut caps_ok = true;
-    for &cap_idx in &compiled.slot_to_caps[idx] {
-        if cap_used[cap_idx].saturating_add(slot.count) > compiled.caps[cap_idx].cap {
+    for &cap_idx in &ctx.compiled.slot_to_caps[idx] {
+        if ctx.cap_used[cap_idx].saturating_add(slot.count) > ctx.compiled.caps[cap_idx].cap {
             caps_ok = false;
             break;
         }
     }
 
     if caps_ok {
-        for &cap_idx in &compiled.slot_to_caps[idx] {
-            cap_used[cap_idx] += slot.count;
+        for &cap_idx in &ctx.compiled.slot_to_caps[idx] {
+            ctx.cap_used[cap_idx] += slot.count;
         }
-        bits[idx] = true;
+        ctx.bits[idx] = true;
 
-        if dfs_exact(
-            idx + 1,
-            compiled,
-            suffix_red,
-            suffix_blue,
-            suffix_direction,
-            next_remaining,
-            cap_used,
-            bits,
-        ) {
+        if dfs_exact(ctx, idx + 1, next_remaining) {
             return true;
         }
 
-        bits[idx] = false;
-        for &cap_idx in &compiled.slot_to_caps[idx] {
-            cap_used[cap_idx] -= slot.count;
+        ctx.bits[idx] = false;
+        for &cap_idx in &ctx.compiled.slot_to_caps[idx] {
+            ctx.cap_used[cap_idx] -= slot.count;
         }
     }
 
-    dfs_exact(
-        idx + 1,
-        compiled,
-        suffix_red,
-        suffix_blue,
-        suffix_direction,
-        remaining,
-        cap_used,
-        bits,
-    )
+    dfs_exact(ctx, idx + 1, remaining)
 }
 
 pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, ConvertError> {
@@ -393,19 +347,22 @@ pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, ConvertError> {
     let mut cap_used = vec![0_u64; compiled.caps.len()];
     let mut bits = vec![false; compiled.slots.len()];
 
+    let mut ctx = DfsCtx {
+        compiled: &compiled,
+        suffix_red: &suffix_red,
+        suffix_blue: &suffix_blue,
+        suffix_direction: &suffix_direction,
+        cap_used: &mut cap_used,
+        bits: &mut bits,
+    };
     let found = dfs_exact(
+        &mut ctx,
         0,
-        &compiled,
-        &suffix_red,
-        &suffix_blue,
-        &suffix_direction,
         Remaining {
             red: rb.num.red,
             blue: rb.num.blue,
             direction,
         },
-        &mut cap_used,
-        &mut bits,
     );
 
     if !found {
@@ -419,7 +376,7 @@ pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, ConvertError> {
 mod tests {
     use std::{fs, path::PathBuf};
 
-    use crate::{CodeExtra, CodeItem, CodeRule, Config, RB, Root, TNTNumCode, TNTNumRB};
+    use crate::{CodeCaps, CodeExtra, Config, RB, Root};
 
     use super::*;
 
@@ -428,7 +385,7 @@ mod tests {
         let file = root.join("../test-config/config.json");
         let content = fs::read_to_string(file).expect("read test config");
         let root: Root = serde_json::from_str(&content).expect("parse json");
-        let config = Config::from(root);
+        let config = Config::try_from(root).expect("validate config");
         config.code
     }
 
@@ -449,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn normalize_code_applies_caps_with_high_weight_priority() {
+    fn code_to_rb_applies_min_cap_to_group_sum() {
         let rule = load_rule();
         let mut bits = vec![false; 32];
 
@@ -463,21 +420,6 @@ mod tests {
         bits[16] = true;
         bits[17] = true;
         bits[18] = true;
-
-        let normalized = normalize_code(&rule, TNTNumCode(bits.clone())).expect("normalize");
-        let actual = normalized.0;
-
-        // red: keep 8 + 2
-        assert!(actual[11]);
-        assert!(!actual[12]);
-        assert!(actual[13]);
-        assert!(!actual[14]);
-
-        // blue: keep 8 + 2
-        assert!(!actual[15]);
-        assert!(actual[16]);
-        assert!(!actual[17]);
-        assert!(actual[18]);
 
         let rb = code_to_rb(&rule, TNTNumCode(bits)).expect("convert");
         assert_eq!(rb.num.red, 10);
@@ -540,7 +482,7 @@ mod tests {
     #[test]
     fn code_length_mismatch_returns_error() {
         let rule = load_rule();
-        let err = normalize_code(&rule, TNTNumCode(vec![false; 31]))
+        let err = code_to_rb(&rule, TNTNumCode(vec![false; 31]))
             .expect_err("length mismatch should fail");
         assert!(matches!(
             err,
@@ -566,5 +508,31 @@ mod tests {
         assert_eq!(rb.num.red, 4);
         assert_eq!(rb.num.blue, 2);
         assert_eq!(rb.direction, 1);
+    }
+
+    #[test]
+    fn overlapping_caps_are_rejected() {
+        let rule = CodeRule {
+            default: vec![
+                CodeItem::Red { count: 8 },
+                CodeItem::Red { count: 4 },
+                CodeItem::Red { count: 2 },
+            ],
+            extra: CodeExtra {
+                caps: vec![
+                    CodeCaps {
+                        bits: vec![1, 2],
+                        cap: 10,
+                    },
+                    CodeCaps {
+                        bits: vec![2, 3],
+                        cap: 10,
+                    },
+                ],
+            },
+        };
+        let err = code_to_rb(&rule, TNTNumCode(vec![true, true, true]))
+            .expect_err("overlapping caps should be rejected");
+        assert!(matches!(err, ConvertError::OverlappingCapBit { bit: 2 }));
     }
 }

@@ -1,4 +1,4 @@
-use crate::util::FtlConfig;
+use super::solver::FtlConfig;
 use crate::*;
 use minecraft_mth as mth;
 use nalgebra::{Vector2, matrix, vector};
@@ -21,14 +21,14 @@ impl Pearl {
         self.yaw.lerp_rotation(self.motion);
     }
 
-    fn tick(&mut self, teleport: Teleport) {
+    fn tick(&mut self, teleport: Teleport) -> Result<(), PearlError> {
         self.motion.tick_motion();
         self.lerp_rotation();
 
         match teleport {
             Teleport::None => self.move_motion(),
             Teleport::EndPortal => match self.dimension {
-                Dimension::End => todo!(),
+                Dimension::End => return Err(PearlError::EndPortalTeleportFromEnd),
                 _ => {
                     self.rotate_motion(END_SPAWN_YAW);
                     self.dimension = Dimension::End;
@@ -36,6 +36,7 @@ impl Pearl {
                 }
             },
         }
+        Ok(())
     }
 
     fn rotate_motion(&mut self, new_yaw: Angle) {
@@ -57,14 +58,14 @@ impl Pearl {
         tnt_motion: Array,
         Time(time): Time,
         to_end_time: Option<Time>,
-    ) -> SimulationReport {
+    ) -> Result<SimulationReport, PearlError> {
         let Time(to_end_time) = to_end_time.unwrap_or(Time(0));
         if to_end_time > time {
-            panic!()
-        };
+            return Err(PearlError::ToEndTimeAfterEnd { to_end_time, time });
+        }
         if time == 0 {
-            panic!()
-        };
+            return Err(PearlError::SimulationTimeZero);
+        }
         self.motion += tnt_motion;
         let mut history: Vec<Pearl> = Vec::new();
         history.push(*self);
@@ -72,19 +73,19 @@ impl Pearl {
         for tick in 0..time {
             if tick + 1 == to_end_time {
                 let mut self_clone = *self;
-                self_clone.tick(Teleport::None);
+                self_clone.tick(Teleport::None)?;
                 to_end_pos = Some(self_clone.position);
-                self.tick(Teleport::EndPortal)
+                self.tick(Teleport::EndPortal)?
             } else {
-                self.tick(Teleport::None)
+                self.tick(Teleport::None)?
             };
             history.push(*self);
         }
-        SimulationReport {
+        Ok(SimulationReport {
             history,
             final_pos: self.position,
             end_portal_pos: to_end_pos,
-        }
+        })
     }
 
     pub(crate) fn calculation(
@@ -93,11 +94,16 @@ impl Pearl {
         motion_per_tnt: MotionPerTnt,
         max_time: Time,
         dimension: Dimension,
-    ) -> Vec<FtlConfig> {
+    ) -> Result<Vec<FtlConfig>, PearlError> {
         let start_pos = match dimension {
             Dimension::Nether => self.position,
             Dimension::End => END_SPAWN_POSTION,
-            Dimension::Overworld => todo!(),
+            Dimension::Overworld => {
+                return Err(PearlError::UnsupportedDimension {
+                    dimension,
+                    context: "Pearl::calculation/start_pos",
+                });
+            }
         };
         let target_distance = start_pos.array_to(target_point.into());
 
@@ -106,7 +112,12 @@ impl Pearl {
         let start_time_iter = match dimension {
             Dimension::Nether => Time::range(Time(0), Time(1)),
             Dimension::End => Time::range(Time(0), max_time),
-            Dimension::Overworld => todo!(),
+            Dimension::Overworld => {
+                return Err(PearlError::UnsupportedDimension {
+                    dimension,
+                    context: "Pearl::calculation/start_time_iter",
+                });
+            }
         };
 
         for start_time in start_time_iter {
@@ -136,6 +147,6 @@ impl Pearl {
             }
         }
 
-        result
+        Ok(result)
     }
 }
