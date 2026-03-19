@@ -11,7 +11,10 @@ use helpers::{
     format_code_to_rb_output, format_code_with_rule, load_config, parse_code_input,
     parse_max_tnt_num,
 };
-use output::{print_calculation_report, print_simulation_report};
+use output::{
+    print_calculation_report, print_calculation_report_csv, print_simulation_report,
+    print_simulation_report_csv,
+};
 
 pub(crate) fn run() -> Result<()> {
     let cli = Cli::parse();
@@ -29,7 +32,11 @@ pub(crate) fn run() -> Result<()> {
             };
             let simulation_report =
                 simulation(&config, rb, args.time.map(Time), args.to_end_time.map(Time))?;
-            print_simulation_report(simulation_report);
+            if args.csv {
+                print_simulation_report_csv(simulation_report);
+            } else {
+                print_simulation_report(simulation_report);
+            }
         }
         Command::Calculation(args) => {
             let config = load_config(args.config_file_path)?;
@@ -43,7 +50,11 @@ pub(crate) fn run() -> Result<()> {
                 args.dimension,
                 args.first,
             )?;
-            print_calculation_report(calculation_report);
+            if args.csv {
+                print_calculation_report_csv(calculation_report);
+            } else {
+                print_calculation_report(calculation_report);
+            }
         }
         Command::Check(args) => {
             let config = load_config(args.config_file_path)?;

@@ -33,6 +33,8 @@ pub(crate) struct SimulationArgs {
     pub time: Option<u64>,
     #[arg(short = 'e', long = "to-end-time")]
     pub to_end_time: Option<u64>,
+    #[arg(long = "csv", help = "Output as CSV")]
+    pub csv: bool,
     pub direction: usize,
     pub red: u64,
     pub blue: u64,
@@ -65,6 +67,8 @@ pub(crate) struct CalculationArgs {
     pub dimension: Option<Dimension>,
     #[arg(long = "first")]
     pub first: Option<usize>,
+    #[arg(long = "csv", help = "Output as CSV")]
+    pub csv: bool,
 }
 
 #[derive(Args)]
