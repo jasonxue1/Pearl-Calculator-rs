@@ -46,6 +46,11 @@ impl RB {
     }
 
     pub(crate) fn to_num(self, directions: Directions) -> Result<TNTNum, PearlError> {
+        if self.direction > 3 {
+            return Err(PearlError::DirectionOutOfRange {
+                value: self.direction as u64,
+            });
+        }
         let base = directions.0[self.direction].match_direction()?;
         Ok(TNTNum(base * Vector2::from(self.num)))
     }
