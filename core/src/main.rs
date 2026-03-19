@@ -1,5 +1,10 @@
 mod output;
-use std::{error::Error, fs, path::PathBuf};
+use std::{
+    error::Error,
+    fs,
+    io::{self, Error as IoError, ErrorKind, IsTerminal},
+    path::PathBuf,
+};
 
 use crate::output::{print_calculation_report, print_simulation_report};
 use clap::{
@@ -7,7 +12,8 @@ use clap::{
     builder::styling::{AnsiColor, Effects, Styles},
 };
 use pearl_calculator::{
-    Config, Dimension, PearlError, RB, Root, TNTNumRB, Time, calculation, simulation,
+    CodeItem, CodeRule, Config, Dimension, PearlError, RB, Root, TNTNumCode, TNTNumRB, Time,
+    calculation, code_to_rb, rb_to_code, simulation,
 };
 
 #[derive(Parser)]
@@ -21,6 +27,8 @@ struct Cli {
 enum Command {
     Simulation(SimulationArgs),
     Calculation(CalculationArgs),
+    Check(CheckArgs),
+    Convert(ConvertArgs),
 }
 
 #[derive(Args)]
@@ -69,6 +77,54 @@ struct CalculationArgs {
     first: Option<usize>,
 }
 
+#[derive(Args)]
+struct CheckArgs {
+    #[arg(
+        short = 'c',
+        long = "config",
+        help = "\u{1b}[33m(Required)\u{1b}[0m Config file path"
+    )]
+    config_file_path: PathBuf,
+}
+
+#[derive(Args)]
+struct ConvertArgs {
+    #[command(subcommand)]
+    command: ConvertCommand,
+}
+
+#[derive(Subcommand)]
+enum ConvertCommand {
+    #[command(name = "rb-to-code")]
+    Rb2Code(Rb2CodeArgs),
+    #[command(name = "code-to-rb")]
+    Code2Rb(Code2RbArgs),
+}
+
+#[derive(Args)]
+struct Rb2CodeArgs {
+    #[arg(
+        short = 'c',
+        long = "config",
+        help = "\u{1b}[33m(Required)\u{1b}[0m Config file path"
+    )]
+    config_file_path: PathBuf,
+    direction: usize,
+    red: u64,
+    blue: u64,
+}
+
+#[derive(Args)]
+struct Code2RbArgs {
+    #[arg(
+        short = 'c',
+        long = "config",
+        help = "\u{1b}[33m(Required)\u{1b}[0m Config file path"
+    )]
+    config_file_path: PathBuf,
+    code: String,
+}
+
 fn cli_styles() -> Styles {
     Styles::styled()
         .header(AnsiColor::Yellow.on_default() | Effects::BOLD)
@@ -110,6 +166,98 @@ fn load_config(path: PathBuf) -> Result<Config, Box<dyn Error>> {
     Ok(Config::try_from(root)?)
 }
 
+fn parse_code_input(input: &str) -> Result<TNTNumCode, Box<dyn Error>> {
+    let trimmed: String = input.chars().filter(|c| !c.is_whitespace()).collect();
+    if trimmed.is_empty() {
+        return Err(IoError::new(ErrorKind::InvalidInput, "code cannot be empty").into());
+    }
+
+    let mut bits = Vec::with_capacity(trimmed.len());
+    for (idx, ch) in trimmed.chars().enumerate() {
+        match ch {
+            '0' => bits.push(false),
+            '1' => bits.push(true),
+            _ => {
+                return Err(IoError::new(
+                    ErrorKind::InvalidInput,
+                    format!("invalid code char at position {}: '{ch}'", idx + 1),
+                )
+                .into());
+            }
+        }
+    }
+
+    Ok(TNTNumCode(bits))
+}
+
+fn format_code_with_rule(rule: &CodeRule, code: TNTNumCode) -> Result<String, Box<dyn Error>> {
+    let bits = code.0;
+    let mut bit_idx = 0usize;
+    let mut out = String::new();
+    let use_color = io::stdout().is_terminal();
+    let reset = "\x1b[0m";
+    let red = "\x1b[1;31m";
+    let blue = "\x1b[1;34m";
+    let green = "\x1b[1;32m";
+
+    for item in &rule.default {
+        match item {
+            CodeItem::Space => out.push(' '),
+            CodeItem::Red { .. } | CodeItem::Blue { .. } | CodeItem::Direction { .. } => {
+                let bit = bits.get(bit_idx).ok_or_else(|| {
+                    IoError::new(
+                        ErrorKind::InvalidData,
+                        "rb-to-code produced fewer bits than code rule requires",
+                    )
+                })?;
+                let ch = if *bit { '1' } else { '0' };
+                if use_color {
+                    let color = match item {
+                        CodeItem::Red { .. } => red,
+                        CodeItem::Blue { .. } => blue,
+                        CodeItem::Direction { .. } => green,
+                        CodeItem::Space => unreachable!(),
+                    };
+                    out.push_str(color);
+                    out.push(ch);
+                    out.push_str(reset);
+                } else {
+                    out.push(ch);
+                }
+                bit_idx += 1;
+            }
+        }
+    }
+
+    if bit_idx != bits.len() {
+        return Err(IoError::new(
+            ErrorKind::InvalidData,
+            "rb-to-code produced more bits than code rule requires",
+        )
+        .into());
+    }
+
+    Ok(out)
+}
+
+fn format_code_to_rb_output(rb: RB) -> String {
+    if !io::stdout().is_terminal() {
+        return format!(
+            "direction={} red={} blue={}",
+            rb.direction, rb.num.red, rb.num.blue
+        );
+    }
+
+    let reset = "\x1b[0m";
+    let magenta = "\x1b[1;35m";
+    let yellow = "\x1b[1;33m";
+
+    format!(
+        "{}direction={}{} {}red={}{} {}blue={}{}",
+        magenta, rb.direction, reset, yellow, rb.num.red, reset, yellow, rb.num.blue, reset
+    )
+}
+
 fn main() -> Result<(), Box<dyn Error>> {
     let cli = Cli::parse();
 
@@ -142,6 +290,33 @@ fn main() -> Result<(), Box<dyn Error>> {
             )?;
             print_calculation_report(calculation_report);
         }
+        Command::Check(args) => {
+            let config = load_config(args.config_file_path)?;
+            config.check()?;
+            println!("Config check passed.");
+        }
+        Command::Convert(args) => match args.command {
+            ConvertCommand::Rb2Code(rb2code_args) => {
+                let config = load_config(rb2code_args.config_file_path)?;
+                let code = rb_to_code(
+                    &config.code,
+                    RB {
+                        num: TNTNumRB {
+                            red: rb2code_args.red,
+                            blue: rb2code_args.blue,
+                        },
+                        direction: rb2code_args.direction,
+                    },
+                )?;
+                println!("{}", format_code_with_rule(&config.code, code)?);
+            }
+            ConvertCommand::Code2Rb(code2rb_args) => {
+                let config = load_config(code2rb_args.config_file_path)?;
+                let code = parse_code_input(&code2rb_args.code)?;
+                let rb = code_to_rb(&config.code, code)?;
+                println!("{}", format_code_to_rb_output(rb));
+            }
+        },
     }
     Ok(())
 }
