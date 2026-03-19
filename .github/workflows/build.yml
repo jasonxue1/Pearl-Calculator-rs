@@ -1,0 +1,92 @@
+name: Build
+
+on:
+  push:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+          - target: x86_64-apple-darwin
+            os: macos-latest
+          - target: aarch64-apple-darwin
+            os: macos-latest
+          - target: x86_64-pc-windows-msvc
+            os: windows-latest
+          - target: aarch64-pc-windows-msvc
+            os: windows-latest
+    runs-on: ${{ matrix.os }}
+
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - name: Install Linux ARM64 linker
+        if: matrix.target == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+      - name: Build (${{ matrix.target }})
+        run: cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+      - name: Upload artifact (${{ matrix.target }})
+        if: runner.os != 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: pearl-calculator-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/pearl-calculator
+      - name: Upload artifact (${{ matrix.target }}) [Windows]
+        if: runner.os == 'Windows'
+        uses: actions/upload-artifact@v6
+        with:
+          name: pearl-calculator-${{ matrix.target }}
+          path: target/${{ matrix.target }}/release/pearl-calculator.exe
+
+  release:
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Download build artifacts
+        uses: actions/download-artifact@v6
+        with:
+          pattern: pearl-calculator-*
+          path: dist
+      - name: Package release archives (binary at archive root)
+        run: |
+          set -euo pipefail
+          mkdir -p release-assets
+          for dir in dist/pearl-calculator-*; do
+            [ -d "$dir" ] || continue
+            artifact_name="$(basename "$dir")"
+            archive_base="${artifact_name}-${GITHUB_REF_NAME}"
+            if [ -f "$dir/pearl-calculator.exe" ]; then
+              bin_name="pearl-calculator.exe"
+              cp "$dir/$bin_name" "release-assets/$bin_name"
+              (cd release-assets && zip -q "${archive_base}.zip" "$bin_name")
+              rm -f "release-assets/$bin_name"
+            else
+              bin_name="pearl-calculator"
+              cp "$dir/$bin_name" "release-assets/$bin_name"
+              chmod +x "release-assets/$bin_name"
+              (cd release-assets && tar -czf "${archive_base}.tar.gz" "$bin_name")
+              rm -f "release-assets/$bin_name"
+            fi
+          done
+      - name: Create GitHub Release and upload assets
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            release-assets/*.zip
+            release-assets/*.tar.gz
