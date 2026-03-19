@@ -8,7 +8,8 @@ const END_SPAWN_YAW: Angle = Angle(90.0);
 
 enum Teleport {
     None,
-    // NetherPortal,
+    #[allow(unused)]
+    NetherPortal,
     EndPortal,
 }
 
@@ -35,6 +36,11 @@ impl Pearl {
                     self.position = END_SPAWN_POSTION;
                 }
             },
+            Teleport::NetherPortal => {
+                return Err(PearlError::Unimplemented {
+                    feature: "nether-portal teleport in Pearl::tick",
+                });
+            }
         }
         Ok(())
     }

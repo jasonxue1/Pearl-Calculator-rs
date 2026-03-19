@@ -17,6 +17,8 @@ pub enum PearlError {
     ToEndTimeAfterEnd { to_end_time: u64, time: u64 },
     #[error("cannot trigger end-portal teleport when already in End")]
     EndPortalTeleportFromEnd,
+    #[error("unimplemented feature: {feature}")]
+    Unimplemented { feature: &'static str },
     #[error("unsupported dimension {dimension} in {context}")]
     UnsupportedDimension {
         dimension: Dimension,
