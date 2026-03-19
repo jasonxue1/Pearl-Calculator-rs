@@ -1,6 +1,5 @@
-use std::error::Error;
-
 use clap::Parser;
+use color_eyre::eyre::Result;
 use pearl_calculator::{RB, TNTNumRB, Time, calculation, code_to_rb, rb_to_code, simulation};
 
 mod args;
@@ -14,7 +13,7 @@ use helpers::{
 };
 use output::{print_calculation_report, print_simulation_report};
 
-pub(crate) fn run() -> Result<(), Box<dyn Error>> {
+pub(crate) fn run() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {

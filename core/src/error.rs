@@ -1,84 +1,48 @@
-use std::fmt;
+use crate::{Dimension, RB};
+use thiserror::Error;
 
-use crate::Dimension;
-
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Error)]
 pub enum PearlError {
+    #[error("unsupported config version: {0}")]
     UnsupportedConfigVersion(u64),
+    #[error("invalid direction vector: {0:?}")]
     InvalidDirectionVector([i8; 2]),
-    InvalidDirectionCombination {
-        x: i64,
-        y: i64,
-    },
-    DuplicateDirectionQuadrant {
-        quadrant: usize,
-    },
+    #[error("invalid direction combination sum: ({x}, {y})")]
+    InvalidDirectionCombination { x: i64, y: i64 },
+    #[error("duplicate direction quadrant: {quadrant}")]
+    DuplicateDirectionQuadrant { quadrant: usize },
+    #[error("simulation time must be greater than 0")]
     SimulationTimeZero,
-    ToEndTimeAfterEnd {
-        to_end_time: u64,
-        time: u64,
-    },
+    #[error("to_end_time ({to_end_time}) cannot be greater than total time ({time})")]
+    ToEndTimeAfterEnd { to_end_time: u64, time: u64 },
+    #[error("cannot trigger end-portal teleport when already in End")]
     EndPortalTeleportFromEnd,
+    #[error("unsupported dimension {dimension} in {context}")]
     UnsupportedDimension {
         dimension: Dimension,
         context: &'static str,
     },
+    #[error("invalid --max-tnt argument count: {0} (expected 0..=2)")]
     InvalidMaxTntArgCount(usize),
-    InvalidCapBit {
-        bit: usize,
-        max: usize,
-    },
-    DuplicateCapBit {
-        bit: usize,
-    },
-    OverlappingCapBit {
-        bit: usize,
-    },
+    #[error("cap bit index out of range: {bit} (must be 1..={max})")]
+    InvalidCapBit { bit: usize, max: usize },
+    #[error("duplicate cap bit index in one cap group: {bit}")]
+    DuplicateCapBit { bit: usize },
+    #[error("cap bit index overlaps across groups: {bit}")]
+    OverlappingCapBit { bit: usize },
+    #[error("code length mismatch: expected {expected} bits from rule, got {actual}")]
+    CodeLengthMismatch { expected: usize, actual: usize },
+    #[error("all bits in one cap group must have the same type")]
+    MixedCapKinds,
+    #[error("direction value out of range: {value} (must be 0..=3)")]
+    DirectionOutOfRange { value: u64 },
+    #[error("numeric overflow while accumulating code counts")]
+    ValueOverflow,
+    #[error(
+        "cannot encode exact RB value: direction={}, red={}, blue={}",
+        rb.direction,
+        rb.num.red,
+        rb.num.blue
+    )]
+    NoExactEncoding { rb: RB },
 }
-
-impl fmt::Display for PearlError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::UnsupportedConfigVersion(version) => {
-                write!(f, "unsupported config version: {version}")
-            }
-            Self::InvalidDirectionVector(value) => {
-                write!(f, "invalid direction vector: [{}, {}]", value[0], value[1])
-            }
-            Self::InvalidDirectionCombination { x, y } => {
-                write!(f, "invalid direction combination sum: ({x}, {y})")
-            }
-            Self::DuplicateDirectionQuadrant { quadrant } => {
-                write!(f, "duplicate direction quadrant: {quadrant}")
-            }
-            Self::SimulationTimeZero => write!(f, "simulation time must be greater than 0"),
-            Self::ToEndTimeAfterEnd { to_end_time, time } => write!(
-                f,
-                "to_end_time ({to_end_time}) cannot be greater than total time ({time})"
-            ),
-            Self::EndPortalTeleportFromEnd => {
-                write!(f, "cannot trigger end-portal teleport when already in End")
-            }
-            Self::UnsupportedDimension { dimension, context } => {
-                write!(f, "unsupported dimension {dimension} in {context}")
-            }
-            Self::InvalidMaxTntArgCount(count) => {
-                write!(
-                    f,
-                    "invalid --max-tnt argument count: {count} (expected 0..=2)"
-                )
-            }
-            Self::InvalidCapBit { bit, max } => {
-                write!(f, "cap bit index out of range: {bit} (must be 1..={max})")
-            }
-            Self::DuplicateCapBit { bit } => {
-                write!(f, "duplicate cap bit index in one cap group: {bit}")
-            }
-            Self::OverlappingCapBit { bit } => {
-                write!(f, "cap bit index overlaps across groups: {bit}")
-            }
-        }
-    }
-}
-
-impl std::error::Error for PearlError {}

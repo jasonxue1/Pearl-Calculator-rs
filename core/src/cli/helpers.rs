@@ -1,10 +1,10 @@
 use std::{
-    error::Error,
     fs,
-    io::{self, Error as IoError, ErrorKind, IsTerminal},
+    io::{self, IsTerminal},
     path::PathBuf,
 };
 
+use color_eyre::eyre::{Result, WrapErr, bail, eyre};
 use pearl_calculator::{CodeItem, CodeRule, Config, PearlError, RB, Root, TNTNumCode, TNTNumRB};
 
 pub(crate) fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Result<Option<TNTNumRB>, PearlError> {
@@ -22,16 +22,25 @@ pub(crate) fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Result<Option<TNTNu
     }
 }
 
-pub(crate) fn load_config(path: PathBuf) -> Result<Config, Box<dyn Error>> {
-    let config_file = fs::read_to_string(path)?;
-    let root: Root = serde_json::from_str(&config_file)?;
+pub(crate) fn load_config(path: PathBuf) -> Result<Config> {
+    if !path.exists() {
+        bail!("config file not found: {}", path.display());
+    }
+    if !path.is_file() {
+        bail!("config path is not a file: {}", path.display());
+    }
+
+    let config_file = fs::read_to_string(&path)
+        .wrap_err_with(|| format!("failed to read config file: {}", path.display()))?;
+    let root: Root = serde_json::from_str(&config_file)
+        .wrap_err_with(|| format!("failed to parse json config: {}", path.display()))?;
     Ok(Config::try_from(root)?)
 }
 
-pub(crate) fn parse_code_input(input: &str) -> Result<TNTNumCode, Box<dyn Error>> {
+pub(crate) fn parse_code_input(input: &str) -> Result<TNTNumCode> {
     let trimmed: String = input.chars().filter(|c| !c.is_whitespace()).collect();
     if trimmed.is_empty() {
-        return Err(IoError::new(ErrorKind::InvalidInput, "code cannot be empty").into());
+        bail!("code cannot be empty");
     }
 
     let mut bits = Vec::with_capacity(trimmed.len());
@@ -40,11 +49,7 @@ pub(crate) fn parse_code_input(input: &str) -> Result<TNTNumCode, Box<dyn Error>
             '0' => bits.push(false),
             '1' => bits.push(true),
             _ => {
-                return Err(IoError::new(
-                    ErrorKind::InvalidInput,
-                    format!("invalid code char at position {}: '{ch}'", idx + 1),
-                )
-                .into());
+                bail!("invalid code char at position {}: '{ch}'", idx + 1);
             }
         }
     }
@@ -52,10 +57,7 @@ pub(crate) fn parse_code_input(input: &str) -> Result<TNTNumCode, Box<dyn Error>
     Ok(TNTNumCode(bits))
 }
 
-pub(crate) fn format_code_with_rule(
-    rule: &CodeRule,
-    code: TNTNumCode,
-) -> Result<String, Box<dyn Error>> {
+pub(crate) fn format_code_with_rule(rule: &CodeRule, code: TNTNumCode) -> Result<String> {
     let bits = code.0;
     let mut bit_idx = 0usize;
     let mut out = String::new();
@@ -70,10 +72,7 @@ pub(crate) fn format_code_with_rule(
             CodeItem::Space => out.push(' '),
             CodeItem::Red { .. } | CodeItem::Blue { .. } | CodeItem::Direction { .. } => {
                 let bit = bits.get(bit_idx).ok_or_else(|| {
-                    IoError::new(
-                        ErrorKind::InvalidData,
-                        "rb-to-code produced fewer bits than code rule requires",
-                    )
+                    eyre!("rb-to-code produced fewer bits than code rule requires")
                 })?;
                 let ch = if *bit { '1' } else { '0' };
                 if use_color {
@@ -95,11 +94,7 @@ pub(crate) fn format_code_with_rule(
     }
 
     if bit_idx != bits.len() {
-        return Err(IoError::new(
-            ErrorKind::InvalidData,
-            "rb-to-code produced more bits than code rule requires",
-        )
-        .into());
+        bail!("rb-to-code produced more bits than code rule requires");
     }
 
     Ok(out)

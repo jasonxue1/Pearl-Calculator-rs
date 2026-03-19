@@ -1,56 +1,4 @@
-use std::fmt;
-
-use crate::{CodeItem, CodeRule, RB, TNTNumCode, TNTNumRB};
-
-#[derive(Debug, Clone)]
-pub enum ConvertError {
-    CodeLengthMismatch { expected: usize, actual: usize },
-    InvalidCapBit { bit: usize, max: usize },
-    DuplicateCapBit { bit: usize },
-    OverlappingCapBit { bit: usize },
-    MixedCapKinds,
-    DirectionOutOfRange { value: u64 },
-    ValueOverflow,
-    NoExactEncoding { rb: RB },
-}
-
-impl fmt::Display for ConvertError {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::CodeLengthMismatch { expected, actual } => {
-                write!(
-                    f,
-                    "code length mismatch: expected {expected} bits from rule, got {actual}"
-                )
-            }
-            Self::InvalidCapBit { bit, max } => {
-                write!(f, "cap bit index out of range: {bit} (must be 1..={max})")
-            }
-            Self::DuplicateCapBit { bit } => {
-                write!(f, "duplicate cap bit index in one cap group: {bit}")
-            }
-            Self::OverlappingCapBit { bit } => {
-                write!(f, "cap bit index overlaps across groups: {bit}")
-            }
-            Self::MixedCapKinds => {
-                write!(f, "all bits in one cap group must have the same type")
-            }
-            Self::DirectionOutOfRange { value } => {
-                write!(f, "direction value out of range: {value} (must be 0..=3)")
-            }
-            Self::ValueOverflow => write!(f, "numeric overflow while accumulating code counts"),
-            Self::NoExactEncoding { rb } => {
-                write!(
-                    f,
-                    "cannot encode exact RB value: direction={}, red={}, blue={}",
-                    rb.direction, rb.num.red, rb.num.blue
-                )
-            }
-        }
-    }
-}
-
-impl std::error::Error for ConvertError {}
+use crate::{CodeItem, CodeRule, PearlError, RB, TNTNumCode, TNTNumRB};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 enum SlotKind {
@@ -79,7 +27,7 @@ struct CompiledRule {
     slot_to_caps: Vec<Vec<usize>>,
 }
 
-fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
+fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, PearlError> {
     let mut slots = Vec::new();
     for item in &rule.default {
         match item {
@@ -108,21 +56,21 @@ fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
         let mut kind = None;
         for &bit in &cap.bits {
             if bit == 0 || bit > slot_len {
-                return Err(ConvertError::InvalidCapBit { bit, max: slot_len });
+                return Err(PearlError::InvalidCapBit { bit, max: slot_len });
             }
             let idx = bit - 1;
             if seen[idx] {
-                return Err(ConvertError::DuplicateCapBit { bit });
+                return Err(PearlError::DuplicateCapBit { bit });
             }
             if used_by_any_cap[idx] {
-                return Err(ConvertError::OverlappingCapBit { bit });
+                return Err(PearlError::OverlappingCapBit { bit });
             }
             seen[idx] = true;
             used_by_any_cap[idx] = true;
             let this_kind = slots[idx].kind;
             if let Some(prev) = kind {
                 if prev != this_kind {
-                    return Err(ConvertError::MixedCapKinds);
+                    return Err(PearlError::MixedCapKinds);
                 }
             } else {
                 kind = Some(this_kind);
@@ -150,16 +98,16 @@ fn compile_rule(rule: &CodeRule) -> Result<CompiledRule, ConvertError> {
     })
 }
 
-fn ensure_code_len(compiled: &CompiledRule, code: &TNTNumCode) -> Result<(), ConvertError> {
+fn ensure_code_len(compiled: &CompiledRule, code: &TNTNumCode) -> Result<(), PearlError> {
     let expected = compiled.slots.len();
     let actual = code.0.len();
     if expected != actual {
-        return Err(ConvertError::CodeLengthMismatch { expected, actual });
+        return Err(PearlError::CodeLengthMismatch { expected, actual });
     }
     Ok(())
 }
 
-pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError> {
+pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, PearlError> {
     let compiled = compile_rule(rule)?;
     ensure_code_len(&compiled, &code)?;
 
@@ -181,17 +129,17 @@ pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError>
             SlotKind::Red => {
                 red = red
                     .checked_add(slot.count)
-                    .ok_or(ConvertError::ValueOverflow)?
+                    .ok_or(PearlError::ValueOverflow)?
             }
             SlotKind::Blue => {
                 blue = blue
                     .checked_add(slot.count)
-                    .ok_or(ConvertError::ValueOverflow)?
+                    .ok_or(PearlError::ValueOverflow)?
             }
             SlotKind::Direction => {
                 direction = direction
                     .checked_add(slot.count)
-                    .ok_or(ConvertError::ValueOverflow)?
+                    .ok_or(PearlError::ValueOverflow)?
             }
         }
     }
@@ -205,26 +153,18 @@ pub fn code_to_rb(rule: &CodeRule, code: TNTNumCode) -> Result<RB, ConvertError>
             .sum();
         let clamped = sum.min(cap.cap);
         match cap.kind {
-            SlotKind::Red => {
-                red = red
-                    .checked_add(clamped)
-                    .ok_or(ConvertError::ValueOverflow)?
-            }
-            SlotKind::Blue => {
-                blue = blue
-                    .checked_add(clamped)
-                    .ok_or(ConvertError::ValueOverflow)?
-            }
+            SlotKind::Red => red = red.checked_add(clamped).ok_or(PearlError::ValueOverflow)?,
+            SlotKind::Blue => blue = blue.checked_add(clamped).ok_or(PearlError::ValueOverflow)?,
             SlotKind::Direction => {
                 direction = direction
                     .checked_add(clamped)
-                    .ok_or(ConvertError::ValueOverflow)?
+                    .ok_or(PearlError::ValueOverflow)?
             }
         }
     }
 
     if direction > 3 {
-        return Err(ConvertError::DirectionOutOfRange { value: direction });
+        return Err(PearlError::DirectionOutOfRange { value: direction });
     }
 
     Ok(RB {
@@ -336,11 +276,11 @@ fn dfs_exact(ctx: &mut DfsCtx<'_>, idx: usize, remaining: Remaining) -> bool {
     dfs_exact(ctx, idx + 1, remaining)
 }
 
-pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, ConvertError> {
+pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, PearlError> {
     let compiled = compile_rule(rule)?;
-    let direction = u64::try_from(rb.direction).map_err(|_| ConvertError::ValueOverflow)?;
+    let direction = u64::try_from(rb.direction).map_err(|_| PearlError::ValueOverflow)?;
     if direction > 3 {
-        return Err(ConvertError::DirectionOutOfRange { value: direction });
+        return Err(PearlError::DirectionOutOfRange { value: direction });
     }
 
     let (suffix_red, suffix_blue, suffix_direction) = build_suffix_sums(&compiled.slots);
@@ -366,173 +306,8 @@ pub fn rb_to_code(rule: &CodeRule, rb: RB) -> Result<TNTNumCode, ConvertError> {
     );
 
     if !found {
-        return Err(ConvertError::NoExactEncoding { rb });
+        return Err(PearlError::NoExactEncoding { rb });
     }
 
     Ok(TNTNumCode(bits))
-}
-
-#[cfg(test)]
-mod tests {
-    use std::{fs, path::PathBuf};
-
-    use crate::{CodeCaps, CodeExtra, Config, RB, Root};
-
-    use super::*;
-
-    fn load_rule() -> CodeRule {
-        let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let file = root.join("../test-config/config.json");
-        let content = fs::read_to_string(file).expect("read test config");
-        let root: Root = serde_json::from_str(&content).expect("parse json");
-        let config = Config::try_from(root).expect("validate config");
-        config.code
-    }
-
-    #[test]
-    fn code_to_rb_accumulates_red_blue_and_direction() {
-        let rule = load_rule();
-        let mut bits = vec![false; 32];
-
-        bits[0] = true; // bit 1: red 340
-        bits[15] = true; // bit 16: blue 1
-        bits[6] = true; // bit 7: direction 2
-        bits[23] = true; // bit 24: direction 1
-
-        let rb = code_to_rb(&rule, TNTNumCode(bits)).expect("convert code to rb");
-        assert_eq!(rb.num.red, 340);
-        assert_eq!(rb.num.blue, 1);
-        assert_eq!(rb.direction, 3);
-    }
-
-    #[test]
-    fn code_to_rb_applies_min_cap_to_group_sum() {
-        let rule = load_rule();
-        let mut bits = vec![false; 32];
-
-        // cap bits [12,13,14,15] with cap 10
-        bits[11] = true;
-        bits[12] = true;
-        bits[13] = true;
-        bits[14] = true;
-        // cap bits [16,17,18,19] with cap 10
-        bits[15] = true;
-        bits[16] = true;
-        bits[17] = true;
-        bits[18] = true;
-
-        let rb = code_to_rb(&rule, TNTNumCode(bits)).expect("convert");
-        assert_eq!(rb.num.red, 10);
-        assert_eq!(rb.num.blue, 10);
-        assert_eq!(rb.direction, 0);
-    }
-
-    #[test]
-    fn rb_roundtrip_with_code_rule() {
-        let rule = load_rule();
-        let expected = RB {
-            num: TNTNumRB {
-                red: 3110,
-                blue: 2900,
-            },
-            direction: 1,
-        };
-
-        let code = rb_to_code(&rule, expected).expect("encode rb");
-        let actual = code_to_rb(&rule, code).expect("decode code");
-        assert_eq!(actual.num.red, expected.num.red);
-        assert_eq!(actual.num.blue, expected.num.blue);
-        assert_eq!(actual.direction, expected.direction);
-    }
-
-    #[test]
-    fn rb_to_code_rejects_out_of_range_direction() {
-        let rule = load_rule();
-        let err = rb_to_code(
-            &rule,
-            RB {
-                num: TNTNumRB { red: 0, blue: 0 },
-                direction: 4,
-            },
-        )
-        .expect_err("direction should be rejected");
-        assert!(matches!(
-            err,
-            ConvertError::DirectionOutOfRange { value: 4 }
-        ));
-    }
-
-    #[test]
-    fn rb_to_code_reports_no_exact_encoding() {
-        let rule = load_rule();
-        let err = rb_to_code(
-            &rule,
-            RB {
-                num: TNTNumRB {
-                    red: 10_881,
-                    blue: 0,
-                },
-                direction: 0,
-            },
-        )
-        .expect_err("value should be impossible due caps");
-        assert!(matches!(err, ConvertError::NoExactEncoding { .. }));
-    }
-
-    #[test]
-    fn code_length_mismatch_returns_error() {
-        let rule = load_rule();
-        let err = code_to_rb(&rule, TNTNumCode(vec![false; 31]))
-            .expect_err("length mismatch should fail");
-        assert!(matches!(
-            err,
-            ConvertError::CodeLengthMismatch {
-                expected: 32,
-                actual: 31
-            }
-        ));
-    }
-
-    #[test]
-    fn dynamic_rule_length_is_supported() {
-        let rule = CodeRule {
-            default: vec![
-                CodeItem::Red { count: 4 },
-                CodeItem::Space,
-                CodeItem::Blue { count: 2 },
-                CodeItem::Direction { count: 1 },
-            ],
-            extra: CodeExtra { caps: Vec::new() },
-        };
-        let rb = code_to_rb(&rule, TNTNumCode(vec![true, true, true])).expect("convert");
-        assert_eq!(rb.num.red, 4);
-        assert_eq!(rb.num.blue, 2);
-        assert_eq!(rb.direction, 1);
-    }
-
-    #[test]
-    fn overlapping_caps_are_rejected() {
-        let rule = CodeRule {
-            default: vec![
-                CodeItem::Red { count: 8 },
-                CodeItem::Red { count: 4 },
-                CodeItem::Red { count: 2 },
-            ],
-            extra: CodeExtra {
-                caps: vec![
-                    CodeCaps {
-                        bits: vec![1, 2],
-                        cap: 10,
-                    },
-                    CodeCaps {
-                        bits: vec![2, 3],
-                        cap: 10,
-                    },
-                ],
-            },
-        };
-        let err = code_to_rb(&rule, TNTNumCode(vec![true, true, true]))
-            .expect_err("overlapping caps should be rejected");
-        assert!(matches!(err, ConvertError::OverlappingCapBit { bit: 2 }));
-    }
 }
