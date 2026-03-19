@@ -11,7 +11,7 @@ pub enum CodeItem {
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct CodeExtra {
-    caps: Vec<CodeCaps>,
+    pub caps: Vec<CodeCaps>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -21,7 +21,7 @@ pub struct CodeCaps {
 }
 
 #[derive(Serialize, Deserialize, Debug)]
-pub struct Code {
+pub struct CodeRule {
     pub default: Vec<CodeItem>,
     pub extra: CodeExtra,
 }

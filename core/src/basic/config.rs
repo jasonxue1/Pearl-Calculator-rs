@@ -6,7 +6,7 @@ use crate::*;
 pub struct Config {
     pub pearl: Pearl,
     pub directions: Directions,
-    pub code: Code,
+    pub code: CodeRule,
     pub motion_per_tnt: MotionPerTnt,
     pub max_tnt: TNTNumRB,
     pub max_error: f64,
@@ -49,6 +49,9 @@ pub struct TNTNumRB {
     pub red: u64,
     pub blue: u64,
 }
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+pub struct TNTNumCode(pub Vec<bool>);
 
 #[derive(Clone, Copy, Debug)]
 pub struct RB {
