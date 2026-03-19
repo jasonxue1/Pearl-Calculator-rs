@@ -1,5 +1,5 @@
 use clap::Parser;
-use color_eyre::eyre::Result;
+use miette::Result;
 use pearl_calculator::{RB, TNTNumRB, Time, calculation, code_to_rb, rb_to_code, simulation};
 
 mod args;

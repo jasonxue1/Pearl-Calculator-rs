@@ -4,10 +4,12 @@ use std::{
     path::PathBuf,
 };
 
-use color_eyre::eyre::{Result, WrapErr, bail, eyre};
+use miette::{Context, IntoDiagnostic, Result, bail, miette};
 use pearl_calculator::{CodeItem, CodeRule, Config, PearlError, RB, Root, TNTNumCode, TNTNumRB};
 
-pub(crate) fn parse_max_tnt_num(values: Option<Vec<u64>>) -> Result<Option<TNTNumRB>, PearlError> {
+pub(crate) fn parse_max_tnt_num(
+    values: Option<Vec<u64>>,
+) -> std::result::Result<Option<TNTNumRB>, PearlError> {
     match values.as_deref() {
         None | Some([]) => Ok(None),
         Some([value]) => Ok(Some(TNTNumRB {
@@ -31,8 +33,10 @@ pub(crate) fn load_config(path: PathBuf) -> Result<Config> {
     }
 
     let config_file = fs::read_to_string(&path)
+        .into_diagnostic()
         .wrap_err_with(|| format!("failed to read config file: {}", path.display()))?;
     let root: Root = serde_json::from_str(&config_file)
+        .into_diagnostic()
         .wrap_err_with(|| format!("failed to parse json config: {}", path.display()))?;
     Ok(Config::try_from(root)?)
 }
@@ -72,7 +76,7 @@ pub(crate) fn format_code_with_rule(rule: &CodeRule, code: TNTNumCode) -> Result
             CodeItem::Space => out.push(' '),
             CodeItem::Red { .. } | CodeItem::Blue { .. } | CodeItem::Direction { .. } => {
                 let bit = bits.get(bit_idx).ok_or_else(|| {
-                    eyre!("rb-to-code produced fewer bits than code rule requires")
+                    miette!("rb-to-code produced fewer bits than code rule requires")
                 })?;
                 let ch = if *bit { '1' } else { '0' };
                 if use_color {

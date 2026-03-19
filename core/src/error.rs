@@ -1,7 +1,8 @@
 use crate::{Dimension, RB};
+use miette::Diagnostic;
 use thiserror::Error;
 
-#[derive(Debug, Clone, Error)]
+#[derive(Debug, Clone, Error, Diagnostic)]
 pub enum PearlError {
     #[error("unsupported config version: {0}")]
     UnsupportedConfigVersion(u64),
