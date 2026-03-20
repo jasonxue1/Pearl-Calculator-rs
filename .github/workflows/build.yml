@@ -5,6 +5,12 @@ on:
 
 permissions:
   contents: write
+  actions: read
+
+env:
+  CARGO_NET_RETRY: 10
+  CARGO_HTTP_TIMEOUT: 120
+  RUSTUP_MAX_RETRIES: 10
 
 jobs:
   build:
@@ -38,8 +44,16 @@ jobs:
       - name: Install Linux ARM64 linker
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          set -euo pipefail
+          for i in 1 2 3; do
+            if sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu; then
+              exit 0
+            fi
+            echo "apt attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "apt install failed after 3 attempts"
+          exit 1
       - name: Build (${{ matrix.target }})
         run: cargo build --release -p pearl-calculator --target ${{ matrix.target }}
         env:
@@ -94,23 +108,47 @@ jobs:
       - name: Install Linux ARM64 linker
         if: matrix.target == 'aarch64-unknown-linux-gnu'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y gcc-aarch64-linux-gnu
+          set -euo pipefail
+          for i in 1 2 3; do
+            if sudo apt-get update && sudo apt-get install -y gcc-aarch64-linux-gnu; then
+              exit 0
+            fi
+            echo "apt attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "apt install failed after 3 attempts"
+          exit 1
       - name: Install Linux GUI packaging dependencies
         if: matrix.kind == 'linux'
         run: |
-          sudo apt-get update
-          sudo apt-get install -y \
-            libgtk-3-dev \
-            libxdo-dev \
-            libxkbcommon-dev \
-            libwayland-dev \
-            libasound2-dev
+          set -euo pipefail
+          for i in 1 2 3; do
+            if sudo apt-get update && sudo apt-get install -y \
+              libgtk-3-dev \
+              libxdo-dev \
+              libxkbcommon-dev \
+              libwayland-dev \
+              libasound2-dev; then
+              exit 0
+            fi
+            echo "apt attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "apt install failed after 3 attempts"
+          exit 1
       - name: Install cargo-bundle
         if: matrix.kind != 'windows'
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-bundle
+        run: |
+          set -euo pipefail
+          for i in 1 2 3; do
+            if cargo install cargo-bundle --locked; then
+              exit 0
+            fi
+            echo "cargo-bundle install attempt $i failed, retrying in 10s..."
+            sleep 10
+          done
+          echo "cargo-bundle install failed after 3 attempts"
+          exit 1
       - name: Build GUI EXE (Windows)
         if: matrix.kind == 'windows'
         run: cargo build --release -p pearl-calculator-gui --target ${{ matrix.target }}
@@ -213,12 +251,119 @@ jobs:
             deb_name="$(basename "$deb_path")"
             (cd "$dir" && tar -czf "../../release-assets/${artifact_name}-${GITHUB_REF_NAME}.tar.gz" "$deb_name")
           done
+      - name: Generate release body
+        run: |
+          set -euo pipefail
+          cat > release-assets/release-body.md <<EOF
+          ## Downloads
+
+          | OS | Arch | CLI | GUI |
+          | --- | --- | --- | --- |
+          | Windows | x86_64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-x86_64-pc-windows-msvc-${GITHUB_REF_NAME}.zip) | [GUI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-x86_64-pc-windows-msvc-${GITHUB_REF_NAME}.zip) |
+          | Windows | aarch64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-aarch64-pc-windows-msvc-${GITHUB_REF_NAME}.zip) | [GUI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-aarch64-pc-windows-msvc-${GITHUB_REF_NAME}.zip) |
+          | Linux | x86_64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-x86_64-unknown-linux-gnu-${GITHUB_REF_NAME}.tar.gz) | [GUI-deb](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-deb-x86_64-unknown-linux-gnu-${GITHUB_REF_NAME}.tar.gz) |
+          | Linux | aarch64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-aarch64-unknown-linux-gnu-${GITHUB_REF_NAME}.tar.gz) | [GUI-deb](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-deb-aarch64-unknown-linux-gnu-${GITHUB_REF_NAME}.tar.gz) |
+          | macOS | x86_64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-x86_64-apple-darwin-${GITHUB_REF_NAME}.tar.gz) | [GUI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-x86_64-apple-darwin-${GITHUB_REF_NAME}.tar.gz) |
+          | macOS | aarch64 | [CLI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-aarch64-apple-darwin-${GITHUB_REF_NAME}.tar.gz) | [GUI](${GITHUB_SERVER_URL}/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}/pearl-calculator-gui-aarch64-apple-darwin-${GITHUB_REF_NAME}.tar.gz) |
+          EOF
       - name: Create GitHub Release and upload assets
+        id: gh_release
         uses: softprops/action-gh-release@v2
         with:
+          name: Pearl-Calculator ${{ github.ref_name }}
+          body_path: release-assets/release-body.md
           files: |
             release-assets/pearl-calculator-*.zip
             release-assets/pearl-calculator-*.tar.gz
             release-assets/pearl-calculator-gui-*-pc-windows-msvc-*.zip
             release-assets/pearl-calculator-gui-*-apple-darwin-*.tar.gz
             release-assets/pearl-calculator-gui-deb-*.tar.gz
+
+  build-summary:
+    if: always()
+    needs: [build, build-gui-packages]
+    runs-on: ubuntu-latest
+    permissions:
+      actions: read
+      contents: read
+    steps:
+      - name: Generate artifact summary table
+        uses: actions/github-script@v8
+        with:
+          script: |
+            const runId = context.runId;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const artifacts = await github.paginate(github.rest.actions.listWorkflowRunArtifacts, {
+              owner,
+              repo,
+              run_id: runId,
+              per_page: 100,
+            });
+
+            const targetArtifacts = artifacts.filter(
+              (a) => !a.expired && a.name.startsWith("pearl-calculator")
+            );
+            const runArtifactsUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${runId}/artifacts`;
+
+            function parseTypeAndTarget(name) {
+              if (name.startsWith("pearl-calculator-gui-deb-")) {
+                return { type: "gui-deb", target: name.replace("pearl-calculator-gui-deb-", "") };
+              }
+              if (name.startsWith("pearl-calculator-gui-")) {
+                return { type: "gui", target: name.replace("pearl-calculator-gui-", "") };
+              }
+              if (name.startsWith("pearl-calculator-")) {
+                return { type: "cli", target: name.replace("pearl-calculator-", "") };
+              }
+              return null;
+            }
+
+            function parseOsArch(target) {
+              const arch = target.split("-")[0] || target;
+              let os = "other";
+              if (target.includes("windows")) os = "Windows";
+              else if (target.includes("linux")) os = "Linux";
+              else if (target.includes("apple-darwin")) os = "macOS";
+              return { os, arch };
+            }
+
+            const rows = new Map();
+            for (const artifact of targetArtifacts) {
+              const parsed = parseTypeAndTarget(artifact.name);
+              if (!parsed) continue;
+              const { os, arch } = parseOsArch(parsed.target);
+              const key = `${os}|${arch}`;
+              if (!rows.has(key)) rows.set(key, { os, arch, cli: "-", gui: "-" });
+              const row = rows.get(key);
+              const artifactUrl = `${context.serverUrl}/${owner}/${repo}/actions/runs/${runId}/artifacts/${artifact.id}`;
+              if (parsed.type === "cli") row.cli = `[CLI](${artifactUrl})`;
+              if (parsed.type === "gui") row.gui = `[GUI](${artifactUrl})`;
+              if (parsed.type === "gui-deb") row.gui = `[GUI-deb](${artifactUrl})`;
+            }
+
+            const osOrder = { Windows: 1, Linux: 2, macOS: 3, other: 4 };
+            const archOrder = { x86_64: 1, aarch64: 2 };
+            const sortedRows = Array.from(rows.values()).sort((a, b) => {
+              const osCmp = (osOrder[a.os] || 99) - (osOrder[b.os] || 99);
+              if (osCmp !== 0) return osCmp;
+              const archCmp = (archOrder[a.arch] || 99) - (archOrder[b.arch] || 99);
+              if (archCmp !== 0) return archCmp;
+              return a.arch.localeCompare(b.arch);
+            });
+
+            let table = "";
+            if (sortedRows.length === 0) {
+              table = "No artifacts found for this run.";
+            } else {
+              table += "| OS | Arch | CLI | GUI |\n";
+              table += "| --- | --- | --- | --- |\n";
+              for (const row of sortedRows) {
+                table += `| ${row.os} | ${row.arch} | ${row.cli} | ${row.gui} |\n`;
+              }
+            }
+
+            await core.summary
+              .addHeading("Build Artifacts Summary")
+              .addRaw(table, true)
+              .write();
