@@ -16,7 +16,7 @@ use crate::parsing::{
 
 impl PearlGuiApp {
     pub(super) fn set_error(&mut self, message: impl Into<String>) {
-        self.status = Some(StatusMessage::error(format!("error: {}", message.into())));
+        self.status = Some(StatusMessage::error(message.into()));
     }
 
     pub(super) fn set_success(&mut self, message: impl Into<String>) {

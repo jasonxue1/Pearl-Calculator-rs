@@ -5,10 +5,11 @@ use crate::constants::{
     FORM_FIELD_WIDTH, TABLE_COMPACT_COL_WIDTH, TABLE_DIM_COL_WIDTH, TABLE_ERROR_COL_WIDTH,
     TABLE_MAX_HEIGHT, TABLE_VEC3_COL_WIDTH, TABLE_YAW_COL_WIDTH,
 };
+use crate::i18n::Translator;
 use crate::models::{CalculationRowView, DimensionOption, PearlGuiApp, SimulationRowView};
 
 impl PearlGuiApp {
-    fn form_label(ui: &mut egui::Ui, text: &str) {
+    fn form_label(ui: &mut egui::Ui, text: impl Into<egui::WidgetText>) {
         ui.add_sized([170.0, 0.0], egui::Label::new(text));
     }
 
@@ -16,7 +17,7 @@ impl PearlGuiApp {
         ui.add_sized([FORM_FIELD_WIDTH, 0.0], egui::TextEdit::singleline(value));
     }
 
-    fn form_row(ui: &mut egui::Ui, label: &str, value: &mut String) {
+    fn form_row(ui: &mut egui::Ui, label: impl Into<egui::WidgetText>, value: &mut String) {
         ui.horizontal(|ui| {
             Self::form_label(ui, label);
             Self::form_input(ui, value);
@@ -24,36 +25,46 @@ impl PearlGuiApp {
     }
 
     pub(super) fn render_calculation_input_panel(&mut self, ui: &mut egui::Ui) {
-        ui.label("Calculation Parameters");
+        let tr = Translator::new(self.language);
+        ui.label(tr.t("calculation-parameters"));
         ui.add_space(4.0);
 
-        Self::form_row(ui, "Target X", &mut self.calc_target_x);
-        Self::form_row(ui, "Target Z", &mut self.calc_target_z);
-        Self::form_row(ui, "Max TNT Red (optional)", &mut self.calc_max_red);
-        Self::form_row(ui, "Max TNT Blue (optional)", &mut self.calc_max_blue);
-        Self::form_row(ui, "Max Error (optional)", &mut self.calc_max_error);
-        Self::form_row(ui, "Max Time (optional)", &mut self.calc_max_time);
-        Self::form_row(ui, "Show First (optional)", &mut self.calc_show_first);
+        Self::form_row(ui, tr.t("target-x"), &mut self.calc_target_x);
+        Self::form_row(ui, tr.t("target-z"), &mut self.calc_target_z);
+        Self::form_row(ui, tr.t("max-tnt-red-optional"), &mut self.calc_max_red);
+        Self::form_row(ui, tr.t("max-tnt-blue-optional"), &mut self.calc_max_blue);
+        Self::form_row(ui, tr.t("max-error-optional"), &mut self.calc_max_error);
+        Self::form_row(ui, tr.t("max-time-optional"), &mut self.calc_max_time);
+        Self::form_row(ui, tr.t("show-first-optional"), &mut self.calc_show_first);
 
         ui.add_space(8.0);
         ui.horizontal(|ui| {
-            ui.label("Dimension");
+            ui.label(tr.t("dimension"));
             ui.selectable_value(
                 &mut self.calc_dimension,
                 DimensionOption::Overworld,
-                "Overworld",
+                tr.t("dimension-overworld"),
             );
-            ui.selectable_value(&mut self.calc_dimension, DimensionOption::Nether, "Nether");
-            ui.selectable_value(&mut self.calc_dimension, DimensionOption::End, "End");
+            ui.selectable_value(
+                &mut self.calc_dimension,
+                DimensionOption::Nether,
+                tr.t("dimension-nether"),
+            );
+            ui.selectable_value(
+                &mut self.calc_dimension,
+                DimensionOption::End,
+                tr.t("dimension-end"),
+            );
         });
 
         ui.add_space(2.0);
-        if ui.button("Run Calculation").clicked() {
+        if ui.button(tr.t("run-calculation")).clicked() {
             self.run_calculation();
         }
     }
 
     pub(super) fn render_calculation_output_panel(&mut self, ui: &mut egui::Ui) {
+        let tr = Translator::new(self.language);
         ui.spacing_mut().item_spacing.x = 10.0;
         let view = self.calc_view.as_ref();
         let rows: &[CalculationRowView] = view.map_or(&[], |v| v.rows.as_slice());
@@ -62,12 +73,9 @@ impl PearlGuiApp {
 
         if let Some(view) = view {
             if view.rows.is_empty() {
-                ui.label("No calculation results.");
+                ui.label(tr.t("no-calculation-results"));
             } else {
-                ui.label(format!(
-                    "Calculation finished. {} result(s).",
-                    view.rows.len()
-                ));
+                ui.label(tr.t_count("calculation-finished", view.rows.len()));
             }
             ui.add_space(4.0);
         }
@@ -99,31 +107,31 @@ impl PearlGuiApp {
         table
             .header(24.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("Time");
+                    ui.strong(tr.t("header-time"));
                 });
                 header.col(|ui| {
-                    ui.strong("Dir");
+                    ui.strong(tr.t("header-dir"));
                 });
                 header.col(|ui| {
-                    ui.strong("Red");
+                    ui.strong(tr.t("header-red"));
                 });
                 header.col(|ui| {
-                    ui.strong("Blue");
+                    ui.strong(tr.t("header-blue"));
                 });
                 header.col(|ui| {
-                    ui.strong("Error");
+                    ui.strong(tr.t("header-error"));
                 });
                 header.col(|ui| {
-                    ui.strong("Pos (x, y, z)");
+                    ui.strong(tr.t("header-pos"));
                 });
                 if show_to_end_time {
                     header.col(|ui| {
-                        ui.strong("To End");
+                        ui.strong(tr.t("header-to-end"));
                     });
                 }
                 if show_end_portal_pos {
                     header.col(|ui| {
-                        ui.strong("Portal (x, y, z)");
+                        ui.strong(tr.t("header-portal"));
                     });
                 }
             })
@@ -174,34 +182,42 @@ impl PearlGuiApp {
     }
 
     pub(super) fn render_simulation_input_panel(&mut self, ui: &mut egui::Ui) {
-        ui.label("Simulation Parameters");
+        let tr = Translator::new(self.language);
+        ui.label(tr.t("simulation-parameters"));
         ui.add_space(4.0);
 
-        Self::form_row(ui, "Direction (0..=3)", &mut self.sim_direction);
-        Self::form_row(ui, "Red", &mut self.sim_red);
-        Self::form_row(ui, "Blue", &mut self.sim_blue);
-        Self::form_row(ui, "Time (optional)", &mut self.sim_time);
-        Self::form_row(ui, "To End Time (optional)", &mut self.sim_to_end_time);
+        Self::form_row(ui, tr.t("direction-range"), &mut self.sim_direction);
+        Self::form_row(ui, tr.t("header-red"), &mut self.sim_red);
+        Self::form_row(ui, tr.t("header-blue"), &mut self.sim_blue);
+        Self::form_row(ui, tr.t("time-optional"), &mut self.sim_time);
+        Self::form_row(ui, tr.t("to-end-time-optional"), &mut self.sim_to_end_time);
 
         ui.add_space(2.0);
-        if ui.button("Run Simulation").clicked() {
+        if ui.button(tr.t("run-simulation")).clicked() {
             self.run_simulation();
         }
     }
 
     pub(super) fn render_simulation_output_panel(&mut self, ui: &mut egui::Ui) {
+        let tr = Translator::new(self.language);
         ui.spacing_mut().item_spacing.x = 6.0;
         let rows: &[SimulationRowView] = self.sim_view.as_ref().map_or(&[], |v| v.rows.as_slice());
         if let Some(view) = &self.sim_view {
             if let Some(end_portal_pos) = view.end_portal_pos {
                 ui.label(format!(
-                    "End portal position: ({:.2}, {:.2}, {:.2})",
-                    end_portal_pos[0], end_portal_pos[1], end_portal_pos[2]
+                    "{}: ({:.2}, {:.2}, {:.2})",
+                    tr.t("end-portal-position"),
+                    end_portal_pos[0],
+                    end_portal_pos[1],
+                    end_portal_pos[2]
                 ));
             }
             ui.label(format!(
-                "Final position: ({:.2}, {:.2}, {:.2})",
-                view.final_pos[0], view.final_pos[1], view.final_pos[2]
+                "{}: ({:.2}, {:.2}, {:.2})",
+                tr.t("final-position"),
+                view.final_pos[0],
+                view.final_pos[1],
+                view.final_pos[2]
             ));
             ui.add_space(4.0);
         }
@@ -219,19 +235,19 @@ impl PearlGuiApp {
             .column(Column::exact(TABLE_DIM_COL_WIDTH))
             .header(24.0, |mut header| {
                 header.col(|ui| {
-                    ui.strong("GT");
+                    ui.strong(tr.t("header-gt"));
                 });
                 header.col(|ui| {
-                    ui.strong("Pos (x, y, z)");
+                    ui.strong(tr.t("header-pos"));
                 });
                 header.col(|ui| {
-                    ui.strong("Vel (x, y, z)");
+                    ui.strong(tr.t("header-vel"));
                 });
                 header.col(|ui| {
-                    ui.strong("Yaw");
+                    ui.strong(tr.t("header-yaw"));
                 });
                 header.col(|ui| {
-                    ui.strong("Dim");
+                    ui.strong(tr.t("header-dim"));
                 });
             })
             .body(|body| {

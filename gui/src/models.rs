@@ -1,9 +1,12 @@
 use pearl_calculator::Dimension;
 
+use crate::i18n::Language;
+
 pub(crate) struct PearlGuiApp {
     pub(crate) config_path: String,
     pub(crate) status: Option<StatusMessage>,
     pub(crate) active_tab: AppTab,
+    pub(crate) language: Language,
 
     pub(crate) calc_target_x: String,
     pub(crate) calc_target_z: String,
@@ -29,6 +32,7 @@ impl Default for PearlGuiApp {
             config_path: "test-config/config.json".to_string(),
             status: None,
             active_tab: AppTab::Calculation,
+            language: Language::default(),
             calc_target_x: "0".to_string(),
             calc_target_z: "0".to_string(),
             calc_max_red: String::new(),

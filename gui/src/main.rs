@@ -1,5 +1,6 @@
 mod app;
 mod constants;
+mod i18n;
 mod models;
 mod parsing;
 

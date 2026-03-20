@@ -1,6 +1,7 @@
 use eframe::egui;
 
 use crate::constants::LEFT_PANEL_WIDTH;
+use crate::i18n::{Language, Translator};
 use crate::models::{AppTab, PearlGuiApp, StatusKind};
 
 pub(crate) fn run() -> Result<(), eframe::Error> {
@@ -72,14 +73,46 @@ fn premultiply_icon_alpha(icon: &mut egui::IconData) {
 impl eframe::App for PearlGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         Self::apply_style(ctx);
+        let tr = Translator::new(self.language);
 
         egui::CentralPanel::default().show(ctx, |ui| {
-            ui.heading("Pearl Calculator");
+            ui.horizontal(|ui| {
+                ui.heading(tr.t("app-title"));
+                let remaining = ui.available_width();
+                ui.allocate_ui_with_layout(
+                    egui::vec2(remaining, 0.0),
+                    egui::Layout::right_to_left(egui::Align::Center),
+                    |ui| {
+                        ui.menu_button(tr.t("settings-button"), |ui| {
+                            ui.label(tr.t("language-label"));
+                            ui.separator();
+                            ui.selectable_value(
+                                &mut self.language,
+                                Language::English,
+                                tr.t("language-option-english"),
+                            );
+                            ui.selectable_value(
+                                &mut self.language,
+                                Language::SimplifiedChinese,
+                                tr.t("language-option-zh-cn"),
+                            );
+                        });
+                    },
+                );
+            });
 
             ui.add_space(10.0);
             ui.horizontal(|ui| {
-                ui.selectable_value(&mut self.active_tab, AppTab::Calculation, "calculation");
-                ui.selectable_value(&mut self.active_tab, AppTab::Simulation, "simulation");
+                ui.selectable_value(
+                    &mut self.active_tab,
+                    AppTab::Calculation,
+                    tr.t("tab-calculation"),
+                );
+                ui.selectable_value(
+                    &mut self.active_tab,
+                    AppTab::Simulation,
+                    tr.t("tab-simulation"),
+                );
             });
             ui.separator();
 
@@ -89,9 +122,9 @@ impl eframe::App for PearlGuiApp {
                     egui::Layout::top_down(egui::Align::Min),
                     |left| {
                         left.group(|ui| {
-                            ui.heading("Input");
+                            ui.heading(tr.t("input"));
                             ui.add_space(4.0);
-                            ui.label("Config Path");
+                            ui.label(tr.t("config-path"));
                             ui.add_sized(
                                 [ui.available_width(), 0.0],
                                 egui::TextEdit::singleline(&mut self.config_path),
@@ -112,18 +145,21 @@ impl eframe::App for PearlGuiApp {
                     egui::Layout::top_down(egui::Align::Min),
                     |right| {
                         right.group(|ui| {
-                            ui.label(egui::RichText::new("Output").heading());
+                            ui.label(egui::RichText::new(tr.t("output")).heading());
                             ui.add_space(2.0);
                             if let Some(status) = &self.status {
                                 let color = match status.kind {
                                     StatusKind::Error => egui::Color32::from_rgb(176, 0, 32),
                                     StatusKind::Success => egui::Color32::from_rgb(20, 120, 70),
                                 };
+                                let error_prefix = tr.t("error-prefix");
                                 let text = match status.kind {
-                                    StatusKind::Error if !status.text.starts_with("error: ") => {
-                                        format!("error: {}", status.text)
+                                    StatusKind::Error
+                                        if !status.text.starts_with(&error_prefix) =>
+                                    {
+                                        format!("{error_prefix}{}", status.text)
                                     }
-                                    StatusKind::Success => "success".to_string(),
+                                    StatusKind::Success => tr.t("status-success"),
                                     _ => status.text.clone(),
                                 };
                                 ui.label(egui::RichText::new(text).color(color).strong());
