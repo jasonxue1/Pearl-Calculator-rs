@@ -3,7 +3,7 @@ resolver = "3"
 members = ["core", "gui"]
 
 [workspace.package]
-version = "0.6.5"
+version = "0.6.6"
 edition = "2024"
 description = "A Pearl Calculator for Minecraft"
 readme = "README.md"
@@ -11,6 +11,7 @@ repository = "https://github.com/jasonxue1/Pearl-Calculator-rs"
 license = "MIT OR Apache-2.0"
 
 [profile.release]
+strip = true
 lto = "fat"
 panic = "abort"
 codegen-units = 1
