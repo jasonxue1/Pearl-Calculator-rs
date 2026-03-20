@@ -212,6 +212,7 @@ jobs:
             if [ -f "$dir/pearl-calculator.exe" ]; then
               (cd "$dir" && zip -q "../../release-assets/${archive_base}.zip" pearl-calculator.exe)
             elif [ -f "$dir/pearl-calculator" ]; then
+              chmod +x "$dir/pearl-calculator"
               (cd "$dir" && tar -czf "../../release-assets/${archive_base}.tar.gz" pearl-calculator)
             fi
           done
