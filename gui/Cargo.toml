@@ -12,13 +12,7 @@ name = "Pearl Calculator"
 identifier = "dev.jasonxue.pearl"
 short_description = "A simple Pearl Calculator"
 long_description = "A simple Pearl Calculato built with egui"
-icon = ["assets/icon.png"]
-
-[package.metadata.bundle.target.x86_64-apple-darwin]
-icon = "assets/icon.icns"
-
-[package.metadata.bundle.target.aarch64-apple-darwin]
-icon = "assets/icon.icns"
+icon = ["assets/icon-512.png", "assets/icon-256.png", "assets/icon-128.png"]
 
 [dependencies]
 eframe = "0.33"

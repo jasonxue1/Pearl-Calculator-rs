@@ -4,10 +4,18 @@ use crate::constants::LEFT_PANEL_WIDTH;
 use crate::models::{AppTab, PearlGuiApp, StatusKind};
 
 pub(crate) fn run() -> Result<(), eframe::Error> {
+    let mut app_icon = eframe::icon_data::from_png_bytes(include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../assets/icon-256.png"
+    )))
+    .expect("failed to load app icon from assets/icon.png");
+    premultiply_icon_alpha(&mut app_icon);
+
     let options = eframe::NativeOptions {
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 760.0])
-            .with_min_inner_size([980.0, 640.0]),
+            .with_min_inner_size([980.0, 640.0])
+            .with_icon(app_icon),
         ..Default::default()
     };
     eframe::run_native(
@@ -15,6 +23,23 @@ pub(crate) fn run() -> Result<(), eframe::Error> {
         options,
         Box::new(|_cc| Ok(Box::new(PearlGuiApp::default()))),
     )
+}
+
+fn premultiply_icon_alpha(icon: &mut egui::IconData) {
+    for pixel in icon.rgba.chunks_exact_mut(4) {
+        let alpha = pixel[3] as u16;
+        if alpha == 0 {
+            pixel[0] = 0;
+            pixel[1] = 0;
+            pixel[2] = 0;
+            continue;
+        }
+
+        // Some native window-icon paths expect premultiplied alpha.
+        pixel[0] = ((pixel[0] as u16 * alpha + 127) / 255) as u8;
+        pixel[1] = ((pixel[1] as u16 * alpha + 127) / 255) as u8;
+        pixel[2] = ((pixel[2] as u16 * alpha + 127) / 255) as u8;
+    }
 }
 
 impl eframe::App for PearlGuiApp {
