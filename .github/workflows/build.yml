@@ -364,6 +364,6 @@ jobs:
             }
 
             await core.summary
-              .addHeading("Build Artifacts Summary")
+              .addRaw("## Build Artifacts Summary\n\n", true)
               .addRaw(table, true)
               .write();
