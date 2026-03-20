@@ -21,8 +21,35 @@ pub(crate) fn run() -> Result<(), eframe::Error> {
     eframe::run_native(
         "Pearl Calculator",
         options,
-        Box::new(|_cc| Ok(Box::new(PearlGuiApp::default()))),
+        Box::new(|cc| {
+            apply_fonts(&cc.egui_ctx);
+            Ok(Box::new(PearlGuiApp::default()))
+        }),
     )
+}
+
+fn apply_fonts(ctx: &egui::Context) {
+    let mut fonts = egui::FontDefinitions::default();
+    fonts.font_data.insert(
+        "noto_sans_sc".to_owned(),
+        egui::FontData::from_static(include_bytes!(concat!(
+            env!("CARGO_MANIFEST_DIR"),
+            "/../assets/NotoSansSC-Regular.ttf"
+        )))
+        .into(),
+    );
+
+    fonts
+        .families
+        .entry(egui::FontFamily::Proportional)
+        .or_default()
+        .insert(0, "noto_sans_sc".to_owned());
+    fonts
+        .families
+        .entry(egui::FontFamily::Monospace)
+        .or_default()
+        .insert(0, "noto_sans_sc".to_owned());
+    ctx.set_fonts(fonts);
 }
 
 fn premultiply_icon_alpha(icon: &mut egui::IconData) {
