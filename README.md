@@ -4,6 +4,18 @@ A Pearl Calculator for Minecraft
 
 ## Install
 
+### GUI
+
+- Download a prebuilt binary from [GitHub Releases](https://github.com/jasonxue1/Pearl-Calculator-rs/releases/latest)
+
+- Build from source
+
+  ```shell
+  git clone https://github.com/jasonxue1/Pearl-Calculator-rs.git
+  cd Pearl-Calculator-rs
+  cargo build --release -p pearl-calculator-gui
+  ```
+
 ### CLI
 
 The CLI package is published as `pearl-calculator` and installs the `pearl-calculator` binary.
@@ -22,17 +34,13 @@ The CLI package is published as `pearl-calculator` and installs the `pearl-calcu
 
 - Download a prebuilt binary from [GitHub Releases](https://github.com/jasonxue1/Pearl-Calculator-rs/releases/latest)
 
-- Build and install from source
+- Build from source
 
   ```shell
   git clone https://github.com/jasonxue1/Pearl-Calculator-rs.git
   cd Pearl-Calculator-rs
-  cargo install --path core
+  cargo build --release -p pearl-calculator
   ```
-
-### GUI
-
-The GUI crate is not ready for release yet.
 
 ## References
 
