@@ -2,8 +2,8 @@ use std::{fs, path::Path};
 
 use nalgebra::Vector2;
 use pearl_calculator::{
-    Config, RB, Root, TNTNumRB, Time, calculation as core_calculation,
-    simulation as core_simulation,
+    CodeItem, Config, RB, Root, TNTNumCode, TNTNumRB, Time, calculation as core_calculation,
+    code_to_rb as core_code_to_rb, rb_to_code as core_rb_to_code, simulation as core_simulation,
 };
 
 use crate::models::{
@@ -216,4 +216,137 @@ impl PearlGuiApp {
             }
         }
     }
+
+    pub(super) fn run_convert_rb_to_code(&mut self) {
+        let config = match self.load_config() {
+            Ok(config) => config,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        let direction = match parse_required_usize(&self.conv_direction, "direction") {
+            Ok(v) => v,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+        if direction > 3 {
+            self.set_error("direction must be in range 0..=3");
+            return;
+        }
+
+        let red = match parse_required_u64(&self.conv_red, "red") {
+            Ok(v) => v,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        let blue = match parse_required_u64(&self.conv_blue, "blue") {
+            Ok(v) => v,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        match core_rb_to_code(
+            &config.code,
+            RB {
+                num: TNTNumRB { red, blue },
+                direction,
+            },
+        ) {
+            Ok(code) => {
+                self.set_success("success");
+                self.conv_code = format_code_bits_with_rule(&config.code.default, &code);
+            }
+            Err(err) => self.set_error(err.to_string()),
+        }
+    }
+
+    pub(super) fn run_convert_code_to_rb(&mut self) {
+        let config = match self.load_config() {
+            Ok(config) => config,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        let code = match parse_code_input(&self.conv_code) {
+            Ok(code) => code,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        match core_code_to_rb(&config.code, code) {
+            Ok(rb) => {
+                self.set_success("success");
+                self.conv_direction = rb.direction.to_string();
+                self.conv_red = rb.num.red.to_string();
+                self.conv_blue = rb.num.blue.to_string();
+                if let Ok(code) = core_rb_to_code(&config.code, rb) {
+                    self.conv_code = format_code_bits_with_rule(&config.code.default, &code);
+                }
+            }
+            Err(err) => self.set_error(err.to_string()),
+        }
+    }
+}
+
+fn parse_code_input(input: &str) -> Result<TNTNumCode, String> {
+    let compact: String = input.chars().filter(|c| !c.is_whitespace()).collect();
+    if compact.is_empty() {
+        return Err("code cannot be empty".to_string());
+    }
+
+    let mut bits = Vec::with_capacity(compact.len());
+    for (idx, ch) in compact.chars().enumerate() {
+        match ch {
+            '0' => bits.push(false),
+            '1' => bits.push(true),
+            _ => {
+                return Err(format!(
+                    "invalid code char at position {}: '{}'",
+                    idx + 1,
+                    ch
+                ));
+            }
+        }
+    }
+
+    Ok(TNTNumCode(bits))
+}
+
+fn format_code_bits_with_rule(rule: &[CodeItem], code: &TNTNumCode) -> String {
+    let bits = &code.0;
+    let mut bit_idx = 0usize;
+    let mut out = String::new();
+
+    for item in rule {
+        match item {
+            CodeItem::Space => out.push(' '),
+            CodeItem::Red { .. } | CodeItem::Blue { .. } | CodeItem::Direction { .. } => {
+                match bits.get(bit_idx) {
+                    Some(true) => out.push('1'),
+                    Some(false) => out.push('0'),
+                    None => return "rb-to-code produced fewer bits than code rule requires".into(),
+                }
+                bit_idx += 1;
+            }
+        }
+    }
+
+    if bit_idx != bits.len() {
+        return "rb-to-code produced more bits than code rule requires".into();
+    }
+
+    out
 }

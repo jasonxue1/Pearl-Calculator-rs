@@ -277,4 +277,40 @@ impl PearlGuiApp {
                 });
             });
     }
+
+    pub(super) fn render_convert_input_panel(&mut self, ui: &mut egui::Ui) {
+        let tr = Translator::new(self.language);
+        ui.label(tr.t("convert-parameters"));
+        ui.add_space(4.0);
+
+        ui.strong(tr.t("convert-rb-label"));
+        ui.add_space(2.0);
+        Self::form_row(ui, tr.t("direction-range"), &mut self.conv_direction);
+        Self::form_row(ui, tr.t("header-red"), &mut self.conv_red);
+        Self::form_row(ui, tr.t("header-blue"), &mut self.conv_blue);
+
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
+            if ui.button(tr.t("run-rb-to-code")).clicked() {
+                self.run_convert_rb_to_code();
+            }
+            if ui.button(tr.t("run-code-to-rb")).clicked() {
+                self.run_convert_code_to_rb();
+            }
+        });
+        ui.add_space(8.0);
+
+        ui.strong(tr.t("convert-code-label"));
+        ui.add_space(2.0);
+        ui.label(tr.t("code-input-hint"));
+        ui.add_sized(
+            [ui.available_width(), 90.0],
+            egui::TextEdit::multiline(&mut self.conv_code),
+        );
+    }
+
+    pub(super) fn render_convert_output_panel(&mut self, ui: &mut egui::Ui) {
+        let tr = Translator::new(self.language);
+        ui.label(tr.t("convert-output-hint"));
+    }
 }

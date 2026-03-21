@@ -6,6 +6,7 @@ language-option-zh-cn = 简体中文
 
 tab-calculation = 计算
 tab-simulation = 模拟
+tab-convert = 转换
 
 input = 输入
 output = 输出
@@ -34,6 +35,14 @@ to-end-time-optional = 到末地时间（可选）
 run-simulation = 开始模拟
 end-portal-position = 末地门坐标
 final-position = 最终坐标
+
+convert-parameters = 转换参数
+convert-rb-label = RB
+convert-code-label = Code
+run-rb-to-code = RB ↓ Code
+run-code-to-rb = Code ↑ RB
+code-input-hint = Code 字符串
+convert-output-hint = 使用左侧两个按钮进行双向转换，会覆盖另一个输入框。
 
 header-time = 时间
 header-dir = 方向

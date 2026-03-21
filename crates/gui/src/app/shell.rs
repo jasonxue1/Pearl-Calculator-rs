@@ -113,6 +113,7 @@ impl eframe::App for PearlGuiApp {
                     AppTab::Simulation,
                     tr.t("tab-simulation"),
                 );
+                ui.selectable_value(&mut self.active_tab, AppTab::Convert, tr.t("tab-convert"));
             });
             ui.separator();
 
@@ -134,6 +135,7 @@ impl eframe::App for PearlGuiApp {
                             match self.active_tab {
                                 AppTab::Calculation => self.render_calculation_input_panel(ui),
                                 AppTab::Simulation => self.render_simulation_input_panel(ui),
+                                AppTab::Convert => self.render_convert_input_panel(ui),
                             }
                         });
                     },
@@ -171,6 +173,7 @@ impl eframe::App for PearlGuiApp {
                             match self.active_tab {
                                 AppTab::Calculation => self.render_calculation_output_panel(ui),
                                 AppTab::Simulation => self.render_simulation_output_panel(ui),
+                                AppTab::Convert => self.render_convert_output_panel(ui),
                             }
                         });
                     },

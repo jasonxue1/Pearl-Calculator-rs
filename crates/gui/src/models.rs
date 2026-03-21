@@ -24,6 +24,11 @@ pub(crate) struct PearlGuiApp {
     pub(crate) sim_time: String,
     pub(crate) sim_to_end_time: String,
     pub(crate) sim_view: Option<SimulationView>,
+
+    pub(crate) conv_direction: String,
+    pub(crate) conv_red: String,
+    pub(crate) conv_blue: String,
+    pub(crate) conv_code: String,
 }
 
 impl Default for PearlGuiApp {
@@ -48,6 +53,10 @@ impl Default for PearlGuiApp {
             sim_time: String::new(),
             sim_to_end_time: String::new(),
             sim_view: None,
+            conv_direction: "0".to_string(),
+            conv_red: "0".to_string(),
+            conv_blue: "0".to_string(),
+            conv_code: String::new(),
         }
     }
 }
@@ -125,6 +134,7 @@ pub(crate) struct CalculationView {
 pub(crate) enum AppTab {
     Calculation,
     Simulation,
+    Convert,
 }
 
 #[derive(Default, Clone, Copy, PartialEq, Eq)]
