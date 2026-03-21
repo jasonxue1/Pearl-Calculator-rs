@@ -22,8 +22,19 @@ use output::{
 pub(crate) fn run() -> Result<()> {
     let cli = Cli::parse();
 
+    if cli.version {
+        println!("{} {}", env!("CARGO_PKG_NAME"), env!("CARGO_PKG_VERSION"));
+        return Ok(());
+    }
+
     match cli.command {
-        Command::Simulation(args) => {
+        None => {
+            let mut cmd = Cli::command();
+            cmd.print_help()
+                .map_err(|e| miette::miette!("failed to print help: {e}"))?;
+            println!();
+        }
+        Some(Command::Simulation(args)) => {
             let config = load_config(args.config_file_path)?;
 
             let rb = RB {
@@ -41,7 +52,7 @@ pub(crate) fn run() -> Result<()> {
                 print_simulation_report(simulation_report);
             }
         }
-        Command::Calculation(args) => {
+        Some(Command::Calculation(args)) => {
             let config = load_config(args.config_file_path)?;
             let max_tnt = parse_max_tnt_num(args.max_tnt)?;
             let calculation_report = calculation(
@@ -59,12 +70,12 @@ pub(crate) fn run() -> Result<()> {
                 print_calculation_report(calculation_report);
             }
         }
-        Command::Check(args) => {
+        Some(Command::Check(args)) => {
             let config = load_config(args.config_file_path)?;
             config.check()?;
             println!("Config check passed.");
         }
-        Command::Convert(args) => match args.command {
+        Some(Command::Convert(args)) => match args.command {
             ConvertCommand::Rb2Code(rb2code_args) => {
                 let config = load_config(rb2code_args.config_file_path)?;
                 let code = rb_to_code(
@@ -86,12 +97,31 @@ pub(crate) fn run() -> Result<()> {
                 println!("{}", format_code_to_rb_output(rb));
             }
         },
-        Command::Complete(args) => {
+        Some(Command::Complete(args)) => {
             let mut cmd = Cli::command();
             let bin_name = cmd.get_name().to_string();
             generate(args.shell, &mut cmd, bin_name, &mut io::stdout());
         }
+        Some(Command::Version(args)) => {
+            print_version(args.short, args.json);
+        }
     }
 
     Ok(())
+}
+
+fn print_version(short: bool, json: bool) {
+    let name = env!("CARGO_PKG_NAME");
+    let version = env!("CARGO_PKG_VERSION");
+    if json {
+        if short {
+            println!(r#"{{"version":"{version}"}}"#);
+        } else {
+            println!(r#"{{"name":"{name}","version":"{version}"}}"#);
+        }
+    } else if short {
+        println!("{version}");
+    } else {
+        println!("{name} {version}");
+    }
 }

@@ -1,7 +1,7 @@
 use std::path::PathBuf;
 
 use clap::{
-    Args, Parser, Subcommand, ValueEnum,
+    ArgAction, Args, Parser, Subcommand, ValueEnum,
     builder::styling::{AnsiColor, Effects, Styles},
 };
 use clap_complete::{Generator, Shell};
@@ -9,10 +9,13 @@ use clap_complete_nushell::Nushell;
 use pearl_calculator::Dimension;
 
 #[derive(Parser)]
-#[command(styles = cli_styles())]
+#[command(styles = cli_styles(), version, disable_version_flag = true)]
 pub(crate) struct Cli {
+    #[arg(short = 'v', long = "version", action = ArgAction::SetTrue)]
+    pub version: bool,
+
     #[command(subcommand)]
-    pub command: Command,
+    pub command: Option<Command>,
 }
 
 #[derive(Subcommand)]
@@ -22,6 +25,15 @@ pub(crate) enum Command {
     Check(CheckArgs),
     Convert(ConvertArgs),
     Complete(CompleteArgs),
+    Version(VersionArgs),
+}
+
+#[derive(Args)]
+pub(crate) struct VersionArgs {
+    #[arg(short = 's', long = "short")]
+    pub short: bool,
+    #[arg(short = 'j', long = "json")]
+    pub json: bool,
 }
 
 #[derive(Args)]
