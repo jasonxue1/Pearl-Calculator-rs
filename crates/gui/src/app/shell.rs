@@ -19,6 +19,7 @@ pub(crate) fn run() -> Result<(), eframe::Error> {
     premultiply_icon_alpha(&mut app_icon);
 
     let options = eframe::NativeOptions {
+        run_and_return: false,
         viewport: egui::ViewportBuilder::default()
             .with_inner_size([1200.0, 760.0])
             .with_min_inner_size([980.0, 640.0])
@@ -83,6 +84,13 @@ fn premultiply_icon_alpha(icon: &mut egui::IconData) {
 
 impl eframe::App for PearlGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        let should_close_by_shortcut =
+            ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::W));
+        if should_close_by_shortcut {
+            ctx.send_viewport_cmd(egui::ViewportCommand::Close);
+            return;
+        }
+
         Self::apply_style(ctx);
         self.refresh_available_configs();
         let tr = Translator::new(self.language);

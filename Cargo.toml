@@ -13,7 +13,7 @@ resolver = "3"
 members = ["crates/gui"]
 
 [workspace.package]
-version = "0.7.0"
+version = "0.7.1"
 edition = "2024"
 description = "A Pearl Calculator for Minecraft"
 readme = "README.md"
