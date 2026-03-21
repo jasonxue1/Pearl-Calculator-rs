@@ -5,6 +5,11 @@ use crate::i18n::{Language, Translator};
 use crate::models::{AppTab, PearlGuiApp, StatusKind};
 use crate::settings;
 
+const MIT_LICENSE_URL: &str = "https://opensource.org/licenses/MIT";
+const APACHE_LICENSE_URL: &str = "https://www.apache.org/licenses/LICENSE-2.0";
+const GITHUB_URL: &str = "https://github.com/jasonxue1/Pearl-Calculator-rs";
+const HOMEPAGE_URL: &str = "https://pearl.jasonxue.dev";
+
 pub(crate) fn run() -> Result<(), eframe::Error> {
     let mut app_icon = eframe::icon_data::from_png_bytes(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
@@ -135,6 +140,18 @@ impl eframe::App for PearlGuiApp {
                         }
                     },
                 );
+            });
+
+            ui.add_space(2.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.label(egui::RichText::new(format!("{}:", tr.t("meta-license"))).weak());
+                ui.hyperlink_to("MIT License", MIT_LICENSE_URL);
+                ui.label("|");
+                ui.hyperlink_to("Apache License Version 2.0", APACHE_LICENSE_URL);
+                ui.separator();
+                ui.hyperlink_to(tr.t("meta-github"), GITHUB_URL);
+                ui.separator();
+                ui.hyperlink_to(tr.t("meta-homepage"), HOMEPAGE_URL);
             });
 
             ui.add_space(10.0);

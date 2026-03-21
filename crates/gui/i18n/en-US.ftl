@@ -20,6 +20,9 @@ tab-convert = Convert
 input = Input
 output = Output
 config-path = Config Path
+meta-license = License
+meta-github = GitHub
+meta-homepage = Homepage
 
 calculation-parameters = Calculation Parameters
 target-x = Target X

@@ -20,6 +20,9 @@ tab-convert = 转换
 input = 输入
 output = 输出
 config-path = 配置路径
+meta-license = License
+meta-github = GitHub
+meta-homepage = 主页
 
 calculation-parameters = 计算参数
 target-x = 目标 X
