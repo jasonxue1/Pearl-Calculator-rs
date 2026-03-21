@@ -54,6 +54,7 @@ code-input-hint = Code 字符串
 convert-output-hint = 使用左侧两个按钮进行双向转换，会覆盖另一个输入框。
 
 header-time = 时间
+header-action = 操作
 header-dir = 方向
 header-red = 红
 header-blue = 蓝
@@ -65,6 +66,7 @@ header-gt = 刻
 header-vel = 速度 (x, y, z)
 header-yaw = 偏航角
 header-dim = 维度
+calculation-code-output-empty = 点击上方某一行最左侧的图标按钮后，这里会显示对应 Code。
 
 status-success = 成功
 error-prefix = 错误：

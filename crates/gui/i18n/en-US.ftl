@@ -54,6 +54,7 @@ code-input-hint = Code string
 convert-output-hint = Use the two buttons on the left to convert and overwrite the other field.
 
 header-time = Time
+header-action = Action
 header-dir = Dir
 header-red = Red
 header-blue = Blue
@@ -65,6 +66,7 @@ header-gt = GT
 header-vel = Vel (x, y, z)
 header-yaw = Yaw
 header-dim = Dim
+calculation-code-output-empty = Click the leftmost icon button on a row to show its code here.
 
 status-success = success
 error-prefix = error:

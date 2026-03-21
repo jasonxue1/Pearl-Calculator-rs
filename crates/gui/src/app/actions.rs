@@ -240,6 +240,7 @@ impl PearlGuiApp {
             Ok(reports) => {
                 self.set_success("success");
                 self.calc_view = Some(build_calculation_view(&reports));
+                self.calc_selected_code.clear();
             }
             Err(err) => {
                 self.set_error(localize_core_error(self.language, &err));
@@ -399,6 +400,30 @@ impl PearlGuiApp {
             Ok(code) => {
                 self.set_success("success");
                 self.conv_code = format_code_bits_with_rule(&config.code.default, &code);
+            }
+            Err(err) => self.set_error(localize_core_error(self.language, &err)),
+        }
+    }
+
+    pub(super) fn run_calculation_row_rb_to_code(&mut self, direction: usize, red: u64, blue: u64) {
+        let config = match self.load_config() {
+            Ok(config) => config,
+            Err(err) => {
+                self.set_error(err);
+                return;
+            }
+        };
+
+        match core_rb_to_code(
+            &config.code,
+            RB {
+                num: TNTNumRB { red, blue },
+                direction,
+            },
+        ) {
+            Ok(code) => {
+                self.set_success("success");
+                self.calc_selected_code = format_code_bits_with_rule(&config.code.default, &code);
             }
             Err(err) => self.set_error(localize_core_error(self.language, &err)),
         }

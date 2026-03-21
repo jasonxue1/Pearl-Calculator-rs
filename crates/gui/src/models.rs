@@ -20,6 +20,7 @@ pub(crate) struct PearlGuiApp {
     pub(crate) calc_show_first: String,
     pub(crate) calc_dimension: DimensionOption,
     pub(crate) calc_view: Option<CalculationView>,
+    pub(crate) calc_selected_code: String,
 
     pub(crate) sim_direction: String,
     pub(crate) sim_red: String,
@@ -55,6 +56,7 @@ impl Default for PearlGuiApp {
             calc_show_first: String::new(),
             calc_dimension: DimensionOption::Nether,
             calc_view: None,
+            calc_selected_code: String::new(),
             sim_direction: "0".to_string(),
             sim_red: "0".to_string(),
             sim_blue: "0".to_string(),

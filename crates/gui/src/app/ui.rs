@@ -67,7 +67,7 @@ impl PearlGuiApp {
         let tr = Translator::new(self.language);
         ui.spacing_mut().item_spacing.x = 10.0;
         let view = self.calc_view.as_ref();
-        let rows: &[CalculationRowView] = view.map_or(&[], |v| v.rows.as_slice());
+        let rows: Vec<CalculationRowView> = view.map_or_else(Vec::new, |v| v.rows.clone());
         let show_to_end_time = view.is_some_and(|v| v.show_to_end_time);
         let show_end_portal_pos = view.is_some_and(|v| v.show_end_portal_pos);
 
@@ -90,6 +90,7 @@ impl PearlGuiApp {
             .resizable(true)
             .vscroll(true)
             .max_scroll_height(TABLE_MAX_HEIGHT)
+            .column(Column::exact(TABLE_COMPACT_COL_WIDTH + 14.0))
             .column(Column::exact(TABLE_COMPACT_COL_WIDTH))
             .column(Column::exact(TABLE_COMPACT_COL_WIDTH))
             .column(Column::exact(TABLE_COMPACT_COL_WIDTH))
@@ -106,6 +107,9 @@ impl PearlGuiApp {
 
         table
             .header(24.0, |mut header| {
+                header.col(|ui| {
+                    ui.strong(tr.t("header-action"));
+                });
                 header.col(|ui| {
                     ui.strong(tr.t("header-time"));
                 });
@@ -138,6 +142,11 @@ impl PearlGuiApp {
             .body(|body| {
                 body.rows(24.0, rows.len(), |mut row| {
                     let item = &rows[row.index()];
+                    row.col(|ui| {
+                        if ui.small_button("⇄").clicked() {
+                            self.run_calculation_row_rb_to_code(item.dir, item.red, item.blue);
+                        }
+                    });
                     row.col(|ui| {
                         ui.monospace(item.time.to_string());
                     });
@@ -179,6 +188,15 @@ impl PearlGuiApp {
                     }
                 });
             });
+
+        ui.add_space(4.0);
+        ui.separator();
+        ui.add_space(4.0);
+        if self.calc_selected_code.is_empty() {
+            ui.label(tr.t("calculation-code-output-empty"));
+        } else {
+            ui.monospace(&self.calc_selected_code);
+        }
     }
 
     pub(super) fn render_simulation_input_panel(&mut self, ui: &mut egui::Ui) {
