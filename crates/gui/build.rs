@@ -2,7 +2,7 @@ fn main() {
     let manifest_dir = std::path::PathBuf::from(
         std::env::var("CARGO_MANIFEST_DIR").expect("CARGO_MANIFEST_DIR is not set"),
     );
-    let assets_dir = manifest_dir.join("../assets");
+    let assets_dir = manifest_dir.join("assets");
     let icon_path = assets_dir.join("icon.ico");
     let assets_dir_str = assets_dir.to_string_lossy().into_owned();
     let icon_path_str = icon_path.to_string_lossy().into_owned();
