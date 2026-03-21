@@ -1,9 +1,11 @@
 use std::path::PathBuf;
 
 use clap::{
-    Args, Parser, Subcommand,
+    Args, Parser, Subcommand, ValueEnum,
     builder::styling::{AnsiColor, Effects, Styles},
 };
+use clap_complete::{Generator, Shell};
+use clap_complete_nushell::Nushell;
 use pearl_calculator::Dimension;
 
 #[derive(Parser)]
@@ -19,6 +21,46 @@ pub(crate) enum Command {
     Calculation(CalculationArgs),
     Check(CheckArgs),
     Convert(ConvertArgs),
+    Complete(CompleteArgs),
+}
+
+#[derive(Args)]
+pub(crate) struct CompleteArgs {
+    pub shell: CompletionShell,
+}
+
+#[derive(Copy, Clone, ValueEnum)]
+pub(crate) enum CompletionShell {
+    Bash,
+    Elvish,
+    Fish,
+    PowerShell,
+    Zsh,
+    Nushell,
+}
+
+impl Generator for CompletionShell {
+    fn file_name(&self, name: &str) -> String {
+        match self {
+            Self::Bash => Shell::Bash.file_name(name),
+            Self::Elvish => Shell::Elvish.file_name(name),
+            Self::Fish => Shell::Fish.file_name(name),
+            Self::PowerShell => Shell::PowerShell.file_name(name),
+            Self::Zsh => Shell::Zsh.file_name(name),
+            Self::Nushell => Nushell.file_name(name),
+        }
+    }
+
+    fn generate(&self, cmd: &clap::Command, buf: &mut dyn std::io::Write) {
+        match self {
+            Self::Bash => Shell::Bash.generate(cmd, buf),
+            Self::Elvish => Shell::Elvish.generate(cmd, buf),
+            Self::Fish => Shell::Fish.generate(cmd, buf),
+            Self::PowerShell => Shell::PowerShell.generate(cmd, buf),
+            Self::Zsh => Shell::Zsh.generate(cmd, buf),
+            Self::Nushell => Nushell.generate(cmd, buf),
+        }
+    }
 }
 
 #[derive(Args)]
