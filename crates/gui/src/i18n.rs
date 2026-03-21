@@ -38,6 +38,14 @@ impl Translator {
         args.set("count", count as i64);
         translate(self.language, key, Some(&args))
     }
+
+    pub(crate) fn t_args(&self, key: &'static str, args: &[(&'static str, String)]) -> String {
+        let mut fluent_args = FluentArgs::new();
+        for (name, value) in args {
+            fluent_args.set(*name, value.as_str());
+        }
+        translate(self.language, key, Some(&fluent_args))
+    }
 }
 
 static EN_US_RESOURCE: OnceLock<FluentResource> = OnceLock::new();
