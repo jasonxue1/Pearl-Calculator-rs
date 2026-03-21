@@ -5,6 +5,7 @@ mod constants;
 mod i18n;
 mod models;
 mod parsing;
+mod settings;
 
 fn main() -> Result<(), eframe::Error> {
     app::run()

@@ -3,6 +3,15 @@ settings-button = ⚙ Settings
 language-label = Language
 language-option-english = English
 language-option-zh-cn = 简体中文
+settings-config-label = Config
+settings-config-none = (Not selected)
+settings-import-config = Import Config
+settings-import-conflict-title = Duplicate Config Name
+settings-import-conflict-message = '{ $name }' already exists.
+settings-import-conflict-rename-label = New name
+settings-import-cancel = Cancel
+settings-import-rename = Rename
+settings-import-overwrite = Overwrite
 
 tab-calculation = Calculation
 tab-simulation = Simulation
@@ -81,10 +90,18 @@ core-error-no-exact-encoding = Cannot encode exact RB value: direction={ $direct
 
 config-error-read-failed = Failed to read config '{ $path }': { $source }
 config-error-parse-json-failed = Failed to parse config json '{ $path }': { $source }
+config-error-store-unavailable = Config directory is unavailable
+config-error-no-selected = Please select a config first
+config-error-selected-not-found = Selected config not found: { $name }
+config-error-empty-default = Config file is empty: { $path }
 parse-error-must-be = { $field } must be a valid { $expected }
 error-max-red-blue-pair = Max TNT Red and Max TNT Blue must both be empty or both provided
 error-direction-range = Direction must be in range 0..=3
 error-code-empty = Code cannot be empty
 error-code-invalid-char = Invalid code character at position { $position }: '{ $char }'
+settings-error-invalid-file-name = Invalid file name
+settings-error-empty-config-name = Config name cannot be empty
+settings-error-target-exists = Target config already exists
+settings-error-target-exists-name = Config '{ $name }' already exists
 parse-type-integer = integer
 parse-type-number = number

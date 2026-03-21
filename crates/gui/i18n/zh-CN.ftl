@@ -3,6 +3,15 @@ settings-button = ⚙ 设置
 language-label = 语言
 language-option-english = English
 language-option-zh-cn = 简体中文
+settings-config-label = 配置
+settings-config-none = （未选择）
+settings-import-config = 导入配置
+settings-import-conflict-title = 配置名冲突
+settings-import-conflict-message = '{ $name }' 已存在。
+settings-import-conflict-rename-label = 新名称
+settings-import-cancel = 取消
+settings-import-rename = 重命名
+settings-import-overwrite = 覆盖
 
 tab-calculation = 计算
 tab-simulation = 模拟
@@ -81,10 +90,18 @@ core-error-no-exact-encoding = 无法精确编码 RB 值：direction={ $directio
 
 config-error-read-failed = 读取配置失败 '{ $path }'：{ $source }
 config-error-parse-json-failed = 解析配置 JSON 失败 '{ $path }'：{ $source }
+config-error-store-unavailable = 配置目录不可用
+config-error-no-selected = 请先选择一个配置
+config-error-selected-not-found = 找不到已选择的配置：{ $name }
+config-error-empty-default = 配置文件为空：{ $path }
 parse-error-must-be = { $field } 必须是有效的{ $expected }
 error-max-red-blue-pair = 最大红 TNT 和最大蓝 TNT 必须同时为空或同时填写
 error-direction-range = 方向必须在 0..=3 范围内
 error-code-empty = Code 不能为空
 error-code-invalid-char = Code 在第 { $position } 位包含无效字符：'{ $char }'
+settings-error-invalid-file-name = 文件名无效
+settings-error-empty-config-name = 配置名不能为空
+settings-error-target-exists = 目标配置已存在
+settings-error-target-exists-name = 配置 '{ $name }' 已存在
 parse-type-integer = 整数
 parse-type-number = 数字

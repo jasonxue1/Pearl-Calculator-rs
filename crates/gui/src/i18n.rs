@@ -12,6 +12,21 @@ pub(crate) enum Language {
 }
 
 impl Language {
+    pub(crate) fn code(self) -> &'static str {
+        match self {
+            Self::English => "en-US",
+            Self::SimplifiedChinese => "zh-CN",
+        }
+    }
+
+    pub(crate) fn from_code(code: &str) -> Option<Self> {
+        match code {
+            "en-US" => Some(Self::English),
+            "zh-CN" => Some(Self::SimplifiedChinese),
+            _ => None,
+        }
+    }
+
     fn id(self) -> LanguageIdentifier {
         match self {
             Self::English => "en-US".parse().expect("invalid en-US lang id"),

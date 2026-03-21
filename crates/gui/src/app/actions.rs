@@ -15,6 +15,7 @@ use crate::parsing::{
     ParseError, parse_optional_f64, parse_optional_u64, parse_optional_usize, parse_required_i64,
     parse_required_u64, parse_required_usize,
 };
+use crate::settings;
 
 impl PearlGuiApp {
     pub(super) fn set_error(&mut self, message: impl Into<String>) {
@@ -27,12 +28,124 @@ impl PearlGuiApp {
     }
 
     fn load_config(&self) -> Result<Config, String> {
-        load_config_local(&self.config_path)
+        load_config_local(self.selected_config.as_deref())
             .map_err(|e| localize_config_load_error(self.language, &e))
     }
 
+    pub(super) fn initialize_config_store(&mut self) {
+        let _ = settings::ensure_store_layout();
+        self.refresh_available_configs();
+        self.selected_config = settings::load_selected_config()
+            .filter(|name| self.available_configs.iter().any(|v| v == name));
+        self.validate_selected_config_on_load();
+    }
+
+    pub(super) fn refresh_available_configs(&mut self) {
+        self.available_configs = settings::list_imported_configs().unwrap_or_default();
+    }
+
+    pub(super) fn select_config_from_settings(&mut self, file_name: &str) {
+        self.selected_config = Some(file_name.to_string());
+        match settings::save_selected_config(Some(file_name)) {
+            Ok(()) => self.validate_selected_config_on_load(),
+            Err(err) => self.set_error(localize_settings_error(self.language, &err)),
+        };
+    }
+
+    pub(super) fn import_config_from_system_picker(&mut self) {
+        let Some(source_path) = rfd::FileDialog::new()
+            .add_filter("JSON", &["json"])
+            .pick_file()
+        else {
+            return;
+        };
+        self.import_config_file(source_path);
+    }
+
+    pub(super) fn import_config_file(&mut self, source_path: PathBuf) {
+        let Some(file_name) = source_path
+            .file_name()
+            .and_then(|s| s.to_str())
+            .map(normalize_config_name)
+        else {
+            self.set_error(localize_settings_error(self.language, "invalid file name"));
+            return;
+        };
+
+        if settings::imported_config_exists(&file_name) {
+            self.import_conflict_source = Some(source_path);
+            self.import_conflict_name = file_name.clone();
+            self.import_rename_name = file_name;
+            return;
+        }
+
+        self.finish_import_config(source_path, &file_name, false);
+    }
+
+    pub(super) fn cancel_import_conflict(&mut self) {
+        self.import_conflict_source = None;
+        self.import_conflict_name.clear();
+        self.import_rename_name.clear();
+    }
+
+    pub(super) fn import_conflict_overwrite(&mut self) {
+        let Some(source_path) = self.import_conflict_source.clone() else {
+            return;
+        };
+        let file_name = self.import_conflict_name.clone();
+        self.finish_import_config(source_path, &file_name, true);
+        self.cancel_import_conflict();
+    }
+
+    pub(super) fn import_conflict_rename(&mut self) {
+        let Some(source_path) = self.import_conflict_source.clone() else {
+            return;
+        };
+        let renamed = normalize_config_name(self.import_rename_name.trim());
+        if renamed.is_empty() {
+            self.set_error(localize_settings_error(
+                self.language,
+                "config name cannot be empty",
+            ));
+            return;
+        }
+        if settings::imported_config_exists(&renamed) {
+            self.import_conflict_name = renamed.clone();
+            self.import_rename_name = renamed.clone();
+            let tr = Translator::new(self.language);
+            self.set_error(tr.t_args(
+                "settings-error-target-exists-name",
+                &[("name", renamed.clone())],
+            ));
+            return;
+        }
+        self.finish_import_config(source_path, &renamed, false);
+        self.cancel_import_conflict();
+    }
+
+    fn finish_import_config(&mut self, source_path: PathBuf, file_name: &str, overwrite: bool) {
+        match settings::import_config_file_as(&source_path, file_name, overwrite) {
+            Ok(imported_name) => {
+                self.refresh_available_configs();
+                self.select_config_from_settings(&imported_name);
+            }
+            Err(err) => {
+                if err == "target config already exists" {
+                    self.import_conflict_name = normalize_config_name(file_name);
+                }
+                self.set_error(localize_settings_error(self.language, &err));
+            }
+        }
+    }
+
+    fn validate_selected_config_on_load(&mut self) {
+        match load_config_local(self.selected_config.as_deref()) {
+            Ok(_) => self.set_success("success"),
+            Err(err) => self.set_error(localize_config_load_error(self.language, &err)),
+        }
+    }
+
     pub(super) fn run_calculation(&mut self) {
-        normalize_trim(&mut self.config_path);
         normalize_compact(&mut self.calc_target_x);
         normalize_compact(&mut self.calc_target_z);
         normalize_compact(&mut self.calc_max_red);
@@ -135,7 +248,6 @@ impl PearlGuiApp {
     }
 
     pub(super) fn run_simulation(&mut self) {
-        normalize_trim(&mut self.config_path);
         normalize_compact(&mut self.sim_direction);
         normalize_compact(&mut self.sim_red);
         normalize_compact(&mut self.sim_blue);
@@ -236,7 +348,6 @@ impl PearlGuiApp {
     }
 
     pub(super) fn run_convert_rb_to_code(&mut self) {
-        normalize_trim(&mut self.config_path);
         normalize_compact(&mut self.conv_direction);
         normalize_compact(&mut self.conv_red);
         normalize_compact(&mut self.conv_blue);
@@ -294,7 +405,6 @@ impl PearlGuiApp {
     }
 
     pub(super) fn run_convert_code_to_rb(&mut self) {
-        normalize_trim(&mut self.config_path);
         normalize_compact(&mut self.conv_code);
 
         let config = match self.load_config() {
@@ -468,12 +578,22 @@ fn localize_parse_error(language: Language, err: &ParseError) -> String {
 fn localize_config_load_error(language: Language, err: &GuiConfigLoadError) -> String {
     let tr = Translator::new(language);
     match err {
+        GuiConfigLoadError::StoreUnavailable => tr.t("config-error-store-unavailable"),
+        GuiConfigLoadError::NoSelectedConfig => tr.t("config-error-no-selected"),
+        GuiConfigLoadError::SelectedConfigNotFound { file_name } => tr.t_args(
+            "config-error-selected-not-found",
+            &[("name", file_name.clone())],
+        ),
         GuiConfigLoadError::ReadConfig { path, source } => tr.t_args(
             "config-error-read-failed",
             &[
                 ("path", path.display().to_string()),
                 ("source", source.to_string()),
             ],
+        ),
+        GuiConfigLoadError::EmptyConfig { path } => tr.t_args(
+            "config-error-empty-default",
+            &[("path", path.display().to_string())],
         ),
         GuiConfigLoadError::ParseConfigJson { path, source } => tr.t_args(
             "config-error-parse-json-failed",
@@ -483,6 +603,17 @@ fn localize_config_load_error(language: Language, err: &GuiConfigLoadError) -> S
             ],
         ),
         GuiConfigLoadError::Core { source } => localize_core_error(language, source),
+    }
+}
+
+fn localize_settings_error(language: Language, err: &str) -> String {
+    let tr = Translator::new(language);
+    match err {
+        "invalid file name" => tr.t("settings-error-invalid-file-name"),
+        "config name cannot be empty" => tr.t("settings-error-empty-config-name"),
+        "target config already exists" => tr.t("settings-error-target-exists"),
+        "config directory is unavailable" => tr.t("config-error-store-unavailable"),
+        _ => err.to_string(),
     }
 }
 
@@ -506,9 +637,17 @@ fn localize_code_input_error(language: Language, err: &str) -> String {
 }
 
 enum GuiConfigLoadError {
+    StoreUnavailable,
+    NoSelectedConfig,
+    SelectedConfigNotFound {
+        file_name: String,
+    },
     ReadConfig {
         path: PathBuf,
         source: std::io::Error,
+    },
+    EmptyConfig {
+        path: PathBuf,
     },
     ParseConfigJson {
         path: PathBuf,
@@ -519,12 +658,24 @@ enum GuiConfigLoadError {
     },
 }
 
-fn load_config_local(path: &str) -> Result<Config, GuiConfigLoadError> {
-    let path = PathBuf::from(path);
+fn load_config_local(selected_config: Option<&str>) -> Result<Config, GuiConfigLoadError> {
+    let selected = selected_config
+        .filter(|s| !s.trim().is_empty())
+        .ok_or(GuiConfigLoadError::NoSelectedConfig)?;
+    let path = settings::imported_config_file_path(selected)
+        .ok_or(GuiConfigLoadError::StoreUnavailable)?;
+    if !path.exists() {
+        return Err(GuiConfigLoadError::SelectedConfigNotFound {
+            file_name: selected.to_string(),
+        });
+    }
     let text = fs::read_to_string(&path).map_err(|source| GuiConfigLoadError::ReadConfig {
         path: path.clone(),
         source,
     })?;
+    if text.trim().is_empty() {
+        return Err(GuiConfigLoadError::EmptyConfig { path });
+    }
     let root: Root =
         serde_json::from_str(&text).map_err(|source| GuiConfigLoadError::ParseConfigJson {
             path: path.clone(),
@@ -537,10 +688,17 @@ fn load_config_local(path: &str) -> Result<Config, GuiConfigLoadError> {
     Ok(config)
 }
 
-fn normalize_trim(value: &mut String) {
-    *value = value.trim().to_string();
-}
-
 fn normalize_compact(value: &mut String) {
     value.retain(|c| !c.is_whitespace());
+}
+
+fn normalize_config_name(name: &str) -> String {
+    let trimmed = name.trim();
+    if trimmed.ends_with(".json") {
+        trimmed.to_string()
+    } else if trimmed.is_empty() {
+        String::new()
+    } else {
+        format!("{trimmed}.json")
+    }
 }

@@ -1,9 +1,12 @@
+use std::path::PathBuf;
+
 use pearl_calculator::Dimension;
 
 use crate::i18n::Language;
 
 pub(crate) struct PearlGuiApp {
-    pub(crate) config_path: String,
+    pub(crate) available_configs: Vec<String>,
+    pub(crate) selected_config: Option<String>,
     pub(crate) status: Option<StatusMessage>,
     pub(crate) active_tab: AppTab,
     pub(crate) language: Language,
@@ -29,12 +32,17 @@ pub(crate) struct PearlGuiApp {
     pub(crate) conv_red: String,
     pub(crate) conv_blue: String,
     pub(crate) conv_code: String,
+
+    pub(crate) import_conflict_source: Option<PathBuf>,
+    pub(crate) import_conflict_name: String,
+    pub(crate) import_rename_name: String,
 }
 
 impl Default for PearlGuiApp {
     fn default() -> Self {
         Self {
-            config_path: "test-config/config.json".to_string(),
+            available_configs: Vec::new(),
+            selected_config: None,
             status: None,
             active_tab: AppTab::Calculation,
             language: Language::default(),
@@ -57,6 +65,9 @@ impl Default for PearlGuiApp {
             conv_red: "0".to_string(),
             conv_blue: "0".to_string(),
             conv_code: String::new(),
+            import_conflict_source: None,
+            import_conflict_name: String::new(),
+            import_rename_name: String::new(),
         }
     }
 }

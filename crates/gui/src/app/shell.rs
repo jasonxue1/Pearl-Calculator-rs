@@ -3,6 +3,7 @@ use eframe::egui;
 use crate::constants::LEFT_PANEL_WIDTH;
 use crate::i18n::{Language, Translator};
 use crate::models::{AppTab, PearlGuiApp, StatusKind};
+use crate::settings;
 
 pub(crate) fn run() -> Result<(), eframe::Error> {
     let mut app_icon = eframe::icon_data::from_png_bytes(include_bytes!(concat!(
@@ -24,7 +25,12 @@ pub(crate) fn run() -> Result<(), eframe::Error> {
         options,
         Box::new(|cc| {
             apply_fonts(&cc.egui_ctx);
-            Ok(Box::new(PearlGuiApp::default()))
+            let mut app = PearlGuiApp::default();
+            if let Some(language) = settings::load_language() {
+                app.language = language;
+            }
+            app.initialize_config_store();
+            Ok(Box::new(app))
         }),
     )
 }
@@ -73,6 +79,7 @@ fn premultiply_icon_alpha(icon: &mut egui::IconData) {
 impl eframe::App for PearlGuiApp {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
         Self::apply_style(ctx);
+        self.refresh_available_configs();
         let tr = Translator::new(self.language);
 
         egui::CentralPanel::default().show(ctx, |ui| {
@@ -84,6 +91,7 @@ impl eframe::App for PearlGuiApp {
                     egui::Layout::right_to_left(egui::Align::Center),
                     |ui| {
                         ui.menu_button(tr.t("settings-button"), |ui| {
+                            let previous_language = self.language;
                             ui.label(tr.t("language-label"));
                             ui.separator();
                             ui.selectable_value(
@@ -96,7 +104,35 @@ impl eframe::App for PearlGuiApp {
                                 Language::SimplifiedChinese,
                                 tr.t("language-option-zh-cn"),
                             );
+                            if previous_language != self.language {
+                                let _ = settings::save_language(self.language);
+                            }
                         });
+
+                        if ui.button(tr.t("settings-import-config")).clicked() {
+                            self.import_config_from_system_picker();
+                        }
+
+                        let selected_text = self
+                            .selected_config
+                            .clone()
+                            .unwrap_or_else(|| tr.t("settings-config-none"));
+                        let mut selected_to_apply: Option<String> = None;
+                        egui::ComboBox::from_id_salt("topbar_config_select")
+                            .selected_text(selected_text)
+                            .width(220.0)
+                            .show_ui(ui, |ui| {
+                                for file_name in &self.available_configs {
+                                    let is_selected =
+                                        self.selected_config.as_deref() == Some(file_name);
+                                    if ui.selectable_label(is_selected, file_name).clicked() {
+                                        selected_to_apply = Some(file_name.clone());
+                                    }
+                                }
+                            });
+                        if let Some(file_name) = selected_to_apply {
+                            self.select_config_from_settings(&file_name);
+                        }
                     },
                 );
             });
@@ -124,12 +160,6 @@ impl eframe::App for PearlGuiApp {
                     |left| {
                         left.group(|ui| {
                             ui.heading(tr.t("input"));
-                            ui.add_space(4.0);
-                            ui.label(tr.t("config-path"));
-                            ui.add_sized(
-                                [ui.available_width(), 0.0],
-                                egui::TextEdit::singleline(&mut self.config_path),
-                            );
                             ui.separator();
 
                             match self.active_tab {
@@ -180,6 +210,8 @@ impl eframe::App for PearlGuiApp {
                 );
             });
         });
+
+        self.render_import_conflict_dialog(ctx);
     }
 }
 
@@ -192,5 +224,40 @@ impl PearlGuiApp {
         style.spacing.interact_size.y = 26.0;
         style.spacing.text_edit_width = crate::constants::FORM_FIELD_WIDTH;
         ctx.set_style(style);
+    }
+
+    fn render_import_conflict_dialog(&mut self, ctx: &egui::Context) {
+        if self.import_conflict_source.is_none() {
+            return;
+        }
+
+        let tr = Translator::new(self.language);
+        egui::Window::new(tr.t("settings-import-conflict-title"))
+            .collapsible(false)
+            .resizable(false)
+            .anchor(egui::Align2::CENTER_CENTER, egui::Vec2::ZERO)
+            .show(ctx, |ui| {
+                ui.label(tr.t_args(
+                    "settings-import-conflict-message",
+                    &[("name", self.import_conflict_name.clone())],
+                ));
+                ui.label(tr.t("settings-import-conflict-rename-label"));
+                ui.add_sized(
+                    [360.0, 0.0],
+                    egui::TextEdit::singleline(&mut self.import_rename_name),
+                );
+                ui.add_space(8.0);
+                ui.horizontal(|ui| {
+                    if ui.button(tr.t("settings-import-cancel")).clicked() {
+                        self.cancel_import_conflict();
+                    }
+                    if ui.button(tr.t("settings-import-rename")).clicked() {
+                        self.import_conflict_rename();
+                    }
+                    if ui.button(tr.t("settings-import-overwrite")).clicked() {
+                        self.import_conflict_overwrite();
+                    }
+                });
+            });
     }
 }
