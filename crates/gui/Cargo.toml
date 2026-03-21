@@ -4,18 +4,23 @@ version.workspace = true
 edition.workspace = true
 description.workspace = true
 readme.workspace = true
+homepage = "https://pearl.jasonxue.dev"
 repository.workspace = true
 license.workspace = true
 
-[package.metadata.bundle]
-name = "Pearl Calculator"
+[package.metadata.packager]
+product-name = "Pearl Calculator"
 identifier = "dev.jasonxue.pearl"
-short_description = "A simple Pearl Calculator"
-long_description = "A simple Pearl Calculato built with egui"
-icon = [
-  "crates/gui/assets/icon-512.png",
-  "crates/gui/assets/icon-256.png",
-  "crates/gui/assets/icon-128.png"
+description = "A simple Pearl Calculator"
+long_description = "A simple Pearl Calculator built with egui"
+authors = ["Jason Xue <hi@jasonxue.dev>"]
+homepage = "https://pearl.jasonxue.dev"
+out-dir = "../../dist"
+licenseFile = "../../LICENSE"
+icons = ["assets/icons/*"]
+nsis.installerIcon = "assets/icon.ico"
+pacman.source = [
+  "https://github.com/jasonxue1/Pearl-Calculator-rs/releases/download/v${pkgver}/pearl-calculator-gui_${pkgver}_${arch}.tar.gz",
 ]
 
 [dependencies]

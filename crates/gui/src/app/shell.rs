@@ -7,7 +7,7 @@ use crate::models::{AppTab, PearlGuiApp, StatusKind};
 pub(crate) fn run() -> Result<(), eframe::Error> {
     let mut app_icon = eframe::icon_data::from_png_bytes(include_bytes!(concat!(
         env!("CARGO_MANIFEST_DIR"),
-        "/assets/icon-256.png"
+        "/assets/icons/icon-256.png"
     )))
     .expect("failed to load app icon from assets/icon.png");
     premultiply_icon_alpha(&mut app_icon);

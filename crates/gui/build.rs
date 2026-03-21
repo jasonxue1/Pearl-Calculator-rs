@@ -15,6 +15,7 @@ fn main() {
         res.set("ProductName", "Pearl Calculator");
         res.set("FileDescription", "A simple Pearl Calculator");
         res.set("Comments", "A simple Pearl Calculato built with egui");
+        res.set("CompanyName", "Jason Xue <hi@jasonxue.dev>");
         if let Err(err) = res.compile() {
             panic!("failed to compile Windows resources: {err}");
         }

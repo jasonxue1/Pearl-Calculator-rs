@@ -4,6 +4,7 @@ version.workspace = true
 edition.workspace = true
 description.workspace = true
 readme.workspace = true
+homepage = "https://pearl.jasonxue.dev"
 repository.workspace = true
 license.workspace = true
 
