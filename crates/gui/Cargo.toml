@@ -9,19 +9,26 @@ repository.workspace = true
 license.workspace = true
 
 [package.metadata.packager]
-product-name = "Pearl Calculator"
+productName = "Pearl Calculator"
 identifier = "dev.jasonxue.pearl"
 description = "A simple Pearl Calculator"
-long_description = "A simple Pearl Calculator built with egui"
+longDescription = "A simple Pearl Calculator built with egui"
 authors = ["Jason Xue <hi@jasonxue.dev>"]
 homepage = "https://pearl.jasonxue.dev"
-out-dir = "../../dist"
+outDir = "../../dist"
 licenseFile = "LICENSE"
 icons = ["assets/icons/*"]
 nsis.installerIcon = "assets/icon.ico"
 pacman.source = [
   "https://github.com/jasonxue1/Pearl-Calculator-rs/releases/download/v${pkgver}/pearl-calculator-gui_${pkgver}_${arch}.tar.gz",
 ]
+
+[package.metadata.packager.dmg]
+background = "assets/dmg-bg.png"
+windowSize = { width = 700, height = 400 }
+appPosition = { x = 170, y = 205 }
+appFolderPosition = { x = 535, y = 195 }
+windowPosition = { x = 200, y = 120 }
 
 [dependencies]
 eframe = "0.33"
