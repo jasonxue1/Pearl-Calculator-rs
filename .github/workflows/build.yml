@@ -67,11 +67,13 @@ jobs:
           - target: x86_64-apple-darwin
             os: macos-latest
             kind: macos
-            formats: [dmg]
+            formats: [app]
+            arch: x64
           - target: aarch64-apple-darwin
             os: macos-latest
             kind: macos
-            formats: [dmg]
+            formats: [app]
+            arch: arm64
           - target: x86_64-pc-windows-msvc
             os: windows-latest
             kind: windows
@@ -104,6 +106,13 @@ jobs:
           -r
           --target ${{ matrix.target }}
           -f ${{ join(matrix.formats, ',') }}
+      - name: Generate dmg for macOS
+        if: matrix.kind == 'macos'
+        run: |
+          brew install create-dmg
+          chmod +x .github/workflows/scripts/generate-dmg.sh
+          .github/workflows/scripts/generate-dmg.sh "${{ matrix.arch }}"
+          rm -rf dist/Pearl\ Calculator.app
       - name: Upload GUI artifact
         uses: actions/upload-artifact@v6
         with:

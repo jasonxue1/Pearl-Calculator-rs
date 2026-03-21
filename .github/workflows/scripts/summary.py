@@ -71,8 +71,8 @@ GUI_VERSION_PATTERNS = [
     re.compile(r"^pearl-calculator-gui_(\d+\.\d+\.\d+)_aarch64\.AppImage$"),
     re.compile(r"^pearl-calculator-gui_(\d+\.\d+\.\d+)_x86_64\.tar\.gz$"),
     re.compile(r"^pearl-calculator-gui_(\d+\.\d+\.\d+)_aarch64\.tar\.gz$"),
-    re.compile(r"^Pearl Calculator_(\d+\.\d+\.\d+)_x64\.dmg$"),
-    re.compile(r"^Pearl Calculator_(\d+\.\d+\.\d+)_aarch64\.dmg$"),
+    re.compile(r"^pearl-calculator-gui_(\d+\.\d+\.\d+)_x64\.dmg$"),
+    re.compile(r"^pearl-calculator-gui_(\d+\.\d+\.\d+)_arm64\.dmg$"),
 ]
 
 
@@ -110,9 +110,9 @@ def gui_release_files(target: str, gui_version: str) -> list[tuple[str, str]]:
     if target == "aarch64-pc-windows-msvc":
         return [("Download", f"pearl-calculator-gui_{gui_version}_arm64-setup.exe")]
     if target == "x86_64-apple-darwin":
-        return [("Download", f"Pearl Calculator_{gui_version}_x64.dmg")]
+        return [("Download", f"pearl-calculator-gui_{gui_version}_x64.dmg")]
     if target == "aarch64-apple-darwin":
-        return [("Download", f"Pearl Calculator_{gui_version}_aarch64.dmg")]
+        return [("Download", f"pearl-calculator-gui_{gui_version}_arm64.dmg")]
     if target == "x86_64-unknown-linux-gnu":
         return [
             ("DEB", f"pearl-calculator-gui_{gui_version}_amd64.deb"),
@@ -159,8 +159,6 @@ def run_release_body(dist_root: Path, output: Path) -> None:
         )
 
     body = "## Downloads\n\n" + render_table(rows)
-    # GitHub release download URLs for macOS DMG assets use dots in place of spaces.
-    body = body.replace("Pearl%20Calculator_", "Pearl.Calculator_")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(body, encoding="utf-8")
 

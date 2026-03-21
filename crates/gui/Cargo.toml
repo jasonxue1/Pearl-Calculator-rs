@@ -16,8 +16,14 @@ longDescription = "A simple Pearl Calculator built with egui"
 authors = ["Jason Xue <hi@jasonxue.dev>"]
 homepage = "https://pearl.jasonxue.dev"
 outDir = "../../dist"
-licenseFile = "LICENSE"
+licenseFile = "assets/LICENSE.rtf"
 icons = ["assets/icons/*"]
+resources = [
+  "assets/LICENSE.rtf",
+  "assets/OFL.txt",
+  "../../LICENSE-APACHE",
+  "../../LICENSE-MIT"
+]
 nsis.installerIcon = "assets/icon.ico"
 pacman.source = [
   "https://github.com/jasonxue1/Pearl-Calculator-rs/releases/download/v${pkgver}/pearl-calculator-gui_${pkgver}_${arch}.tar.gz",
