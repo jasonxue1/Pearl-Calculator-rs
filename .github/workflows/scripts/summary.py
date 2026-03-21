@@ -159,6 +159,8 @@ def run_release_body(dist_root: Path, output: Path) -> None:
         )
 
     body = "## Downloads\n\n" + render_table(rows)
+    # GitHub release download URLs for macOS DMG assets use dots in place of spaces.
+    body = body.replace("Pearl%20Calculator_", "Pearl.Calculator_")
     output.parent.mkdir(parents=True, exist_ok=True)
     output.write_text(body, encoding="utf-8")
 
