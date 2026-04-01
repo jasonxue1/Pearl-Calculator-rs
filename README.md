@@ -13,7 +13,7 @@ A Pearl Calculator for Minecraft
   ```shell
   git clone https://github.com/jasonxue1/Pearl-Calculator-rs.git
   cd Pearl-Calculator-rs
-  cargo build --release -p pearl-calculator-gui
+  cargo build --rp pearl-calculator-gui
   ```
 
 ### CLI
@@ -39,7 +39,7 @@ The CLI package is published as `pearl-calculator` and installs the `pearl-calcu
   ```shell
   git clone https://github.com/jasonxue1/Pearl-Calculator-rs.git
   cd Pearl-Calculator-rs
-  cargo build --release -p pearl-calculator
+  cargo build -rp pearl-calculator
   ```
 
 ## References
