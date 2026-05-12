@@ -39,7 +39,7 @@ windowPosition = { x = 200, y = 120 }
 [dependencies]
 eframe = "0.34"
 egui = "0.34"
-egui_extras = "0.33"
+egui_extras = "0.34"
 fluent-bundle = "0.16"
 fluent-syntax = "0.12"
 nalgebra = "0.34"

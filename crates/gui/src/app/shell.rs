@@ -83,7 +83,8 @@ fn premultiply_icon_alpha(icon: &mut egui::IconData) {
 }
 
 impl eframe::App for PearlGuiApp {
-    fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+    fn ui(&mut self, ui: &mut egui::Ui, _frame: &mut eframe::Frame) {
+        let ctx = ui.ctx().clone();
         let should_close_by_shortcut =
             ctx.input(|input| input.modifiers.command && input.key_pressed(egui::Key::W));
         if should_close_by_shortcut {
@@ -91,11 +92,11 @@ impl eframe::App for PearlGuiApp {
             return;
         }
 
-        Self::apply_style(ctx);
+        Self::apply_style(&ctx);
         self.refresh_available_configs();
         let tr = Translator::new(self.language);
 
-        egui::CentralPanel::default().show(ctx, |ui| {
+        egui::CentralPanel::default().show_inside(ui, |ui| {
             ui.horizontal(|ui| {
                 ui.heading(tr.t("app-title"));
                 let remaining = ui.available_width();
@@ -236,19 +237,19 @@ impl eframe::App for PearlGuiApp {
             });
         });
 
-        self.render_import_conflict_dialog(ctx);
+        self.render_import_conflict_dialog(&ctx);
     }
 }
 
 impl PearlGuiApp {
     fn apply_style(ctx: &egui::Context) {
-        let mut style = (*ctx.style()).clone();
+        let mut style = ctx.global_style().as_ref().clone();
         style.visuals = egui::Visuals::light();
         style.spacing.item_spacing = egui::vec2(8.0, 8.0);
         style.spacing.button_padding = egui::vec2(10.0, 5.0);
         style.spacing.interact_size.y = 26.0;
         style.spacing.text_edit_width = crate::constants::FORM_FIELD_WIDTH;
-        ctx.set_style(style);
+        ctx.set_global_style(style);
     }
 
     fn render_import_conflict_dialog(&mut self, ctx: &egui::Context) {
