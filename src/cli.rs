@@ -60,6 +60,7 @@ pub(crate) fn run() -> Result<()> {
                 max_tnt,
                 nalgebra::vector![args.x, args.z],
                 args.max_error,
+                args.min_time.map(Time),
                 args.max_time.map(Time),
                 args.dimension,
                 args.first,

@@ -22,6 +22,7 @@
     },
     "max_error": 20,
     "show_first": 10,
+    "min_time": 0,
     "max_time": 10,
     "code": {
       "default": [

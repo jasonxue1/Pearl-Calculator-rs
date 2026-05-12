@@ -30,6 +30,7 @@ target-z = Target Z
 max-tnt-red-optional = Max TNT Red (optional)
 max-tnt-blue-optional = Max TNT Blue (optional)
 max-error-optional = Max Error (optional)
+min-time-optional = Min Time (optional)
 max-time-optional = Max Time (optional)
 show-first-optional = Show First (optional)
 dimension = Dimension
@@ -83,6 +84,7 @@ core-error-to-end-time-after-end = to_end_time ({ $to_end_time }) cannot be grea
 core-error-end-portal-teleport-from-end = Cannot trigger end-portal teleport when already in End
 core-error-unimplemented = Unimplemented feature: { $feature }
 core-error-unsupported-dimension = Unsupported dimension { $dimension } in { $context }
+core-error-unsupported-calculation-dimension-transition = Unsupported calculation dimension transition: { $start_dimension } -> { $target_dimension }
 core-error-invalid-max-tnt-arg-count = Invalid max-tnt argument count: { $count } (expected 0..=2)
 core-error-invalid-cap-bit = Cap bit index out of range: { $bit } (must be 1..={ $max })
 core-error-duplicate-cap-bit = Duplicate cap bit index in one cap group: { $bit }

@@ -34,6 +34,7 @@ impl PearlGuiApp {
         Self::form_row(ui, tr.t("max-tnt-red-optional"), &mut self.calc_max_red);
         Self::form_row(ui, tr.t("max-tnt-blue-optional"), &mut self.calc_max_blue);
         Self::form_row(ui, tr.t("max-error-optional"), &mut self.calc_max_error);
+        Self::form_row(ui, tr.t("min-time-optional"), &mut self.calc_min_time);
         Self::form_row(ui, tr.t("max-time-optional"), &mut self.calc_max_time);
         Self::form_row(ui, tr.t("show-first-optional"), &mut self.calc_show_first);
 

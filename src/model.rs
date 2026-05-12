@@ -24,7 +24,7 @@ pub enum Dimension {
     End = 1,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone, Copy)]
+#[derive(Debug, Default, Deserialize, Serialize, Clone, Copy, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Time(pub u64);
 
 impl fmt::Display for Dimension {

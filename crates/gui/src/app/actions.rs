@@ -151,6 +151,7 @@ impl PearlGuiApp {
         normalize_compact(&mut self.calc_max_red);
         normalize_compact(&mut self.calc_max_blue);
         normalize_compact(&mut self.calc_max_error);
+        normalize_compact(&mut self.calc_min_time);
         normalize_compact(&mut self.calc_max_time);
         normalize_compact(&mut self.calc_show_first);
 
@@ -211,6 +212,14 @@ impl PearlGuiApp {
             }
         };
 
+        let min_time = match parse_optional_u64(&self.calc_min_time, &tr.t("min-time-optional")) {
+            Ok(v) => v.map(Time),
+            Err(err) => {
+                self.set_error(localize_parse_error(self.language, &err));
+                return;
+            }
+        };
+
         let max_time = match parse_optional_u64(&self.calc_max_time, &tr.t("max-time-optional")) {
             Ok(v) => v.map(Time),
             Err(err) => {
@@ -233,6 +242,7 @@ impl PearlGuiApp {
             max_tnt,
             Vector2::new(x, z),
             max_error,
+            min_time,
             max_time,
             Some(self.calc_dimension.to_dimension()),
             show_first,
@@ -546,6 +556,16 @@ fn localize_core_error(language: Language, err: &PearlError) -> String {
             &[
                 ("dimension", dimension.to_string()),
                 ("context", (*context).to_string()),
+            ],
+        ),
+        PearlError::UnsupportedCalculationDimensionTransition {
+            start_dimension,
+            target_dimension,
+        } => tr.t_args(
+            "core-error-unsupported-calculation-dimension-transition",
+            &[
+                ("start_dimension", start_dimension.to_string()),
+                ("target_dimension", target_dimension.to_string()),
             ],
         ),
         PearlError::InvalidMaxTntArgCount(count) => tr.t_args(
