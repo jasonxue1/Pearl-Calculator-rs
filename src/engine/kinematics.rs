@@ -14,6 +14,7 @@ use super::solver::TNTNum;
 
 const G: f64 = 0.03;
 const D: f64 = 0.99_f32 as f64;
+const NUM_SEARCH_RADIUS: i64 = 16;
 
 #[derive(Debug, Clone, Copy)]
 struct Polar {
@@ -42,21 +43,27 @@ impl Array {
     pub(crate) fn to_nums(
         self,
         motion_per_tnt: MotionPerTnt,
+        initial_motion: Array,
         start_time: Time,
         end_time: Time,
         rotate: bool,
     ) -> Vec<TNTNum> {
         let centers = if rotate {
-            self.rotated_num_centers(motion_per_tnt, start_time, end_time)
+            self.rotated_num_centers(motion_per_tnt, initial_motion, start_time, end_time)
         } else {
-            self.linear_num_center(motion_per_tnt, start_time, end_time)
+            self.linear_num_center(motion_per_tnt, initial_motion, start_time, end_time)
                 .into_iter()
                 .collect()
         };
 
         let mut nums = BTreeSet::new();
         for center in centers {
-            for (dz, dx) in (-5..=5).cartesian_product(-5..=5) {
+            // The inverse step computes approximate TNT-number centers. Keep a
+            // conservative window here so the coarse pass does not miss valid
+            // nearby solutions before precise simulation/error filtering.
+            for (dz, dx) in (-NUM_SEARCH_RADIUS..=NUM_SEARCH_RADIUS)
+                .cartesian_product(-NUM_SEARCH_RADIUS..=NUM_SEARCH_RADIUS)
+            {
                 nums.insert((center.x + dx, center.y + dz));
             }
         }
@@ -94,6 +101,7 @@ impl Array {
     fn linear_num_center(
         self,
         motion_per_tnt: MotionPerTnt,
+        initial_motion: Array,
         start_time: Time,
         end_time: Time,
     ) -> Option<Vector2<i64>> {
@@ -102,8 +110,14 @@ impl Array {
             return None;
         }
 
-        let base = vector![(self.0.x + self.0.z) * 0.5, (self.0.x - self.0.z) * 0.5];
-        let new_base = base / motion_per_tnt.x_z / t;
+        let total_motion = vector![self.0.x / t, self.0.z / t];
+        let initial_xz = vector![initial_motion.0.x, initial_motion.0.z];
+        let tnt_motion = total_motion - initial_xz;
+        let base = vector![
+            (tnt_motion.x + tnt_motion.y) * 0.5,
+            (tnt_motion.x - tnt_motion.y) * 0.5,
+        ];
+        let new_base = base / motion_per_tnt.x_z;
         Some(vector![
             new_base.x.round() as i64,
             new_base.y.round() as i64,
@@ -113,6 +127,7 @@ impl Array {
     fn rotated_num_centers(
         self,
         motion_per_tnt: MotionPerTnt,
+        initial_motion: Array,
         start_time: Time,
         end_time: Time,
     ) -> Vec<Vector2<i64>> {
@@ -132,10 +147,9 @@ impl Array {
                 r: radius,
                 theta: initial_theta,
             });
-            let base = vector![
-                (initial.0.x + initial.0.z) * 0.5,
-                (initial.0.x - initial.0.z) * 0.5,
-            ] / motion_per_tnt.x_z;
+            let tnt_x = initial.0.x - initial_motion.0.x;
+            let tnt_z = initial.0.z - initial_motion.0.z;
+            let base = vector![(tnt_x + tnt_z) * 0.5, (tnt_x - tnt_z) * 0.5,] / motion_per_tnt.x_z;
             centers.push(vector![base.x.round() as i64, base.y.round() as i64]);
         }
 
@@ -180,5 +194,75 @@ impl From<Array> for Polar {
 impl From<Vector2<i64>> for Array {
     fn from(val: Vector2<i64>) -> Self {
         Array(vector![val.x as f64, 0.0, val.y as f64])
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn linear_num_center_accounts_for_initial_motion() {
+        let motion_per_tnt = MotionPerTnt { x_z: 1.0, y: 0.0 };
+        let start_time = Time(0);
+        let end_time = Time(1);
+        let t = decay_sum(start_time.0 + 1, end_time.0);
+
+        let total_motion = vector![30.0, -10.0];
+        let target = Array(vector![total_motion.x * t, 0.0, total_motion.y * t]);
+        let initial_motion = Array(vector![3.0, 0.0, 1.0]);
+
+        let actual = target
+            .linear_num_center(motion_per_tnt, initial_motion, start_time, end_time)
+            .expect("center");
+
+        assert_eq!(actual, vector![8, 19]);
+        assert_eq!(
+            target.linear_num_center(
+                motion_per_tnt,
+                Array(vector![0.0, 0.0, 0.0]),
+                start_time,
+                end_time,
+            ),
+            Some(vector![10, 20])
+        );
+    }
+
+    #[test]
+    fn rotated_num_centers_include_solution_with_initial_motion() {
+        let motion_per_tnt = MotionPerTnt { x_z: 1.0, y: 0.0 };
+        let start_time = Time(0);
+        let end_time = Time(2);
+        let initial_motion = Array(vector![2.0, 0.0, 4.0]);
+        let tnt_num = TNTNum(vector![10, 20]);
+        let tnt_motion = Array::from_num(tnt_num, motion_per_tnt);
+        let total_motion = Array(vector![
+            initial_motion.0.x + tnt_motion.0.x,
+            0.0,
+            initial_motion.0.z + tnt_motion.0.z,
+        ]);
+
+        let Polar { r, theta } = total_motion.into();
+        let t = decay_sum(start_time.0 + 2, end_time.0);
+        let angle_scale = 2.0 - 0.8_f64.powi(start_time.0 as i32 + 1);
+        let target = Array::from(Polar {
+            r: r * t,
+            theta: angle_scale * theta - PI / 2.0,
+        });
+
+        let centers =
+            target.rotated_num_centers(motion_per_tnt, initial_motion, start_time, end_time);
+
+        assert!(centers.contains(&tnt_num.0));
+        assert!(
+            !target
+                .rotated_num_centers(
+                    motion_per_tnt,
+                    Array(vector![0.0, 0.0, 0.0]),
+                    start_time,
+                    end_time,
+                )
+                .contains(&tnt_num.0)
+        );
     }
 }

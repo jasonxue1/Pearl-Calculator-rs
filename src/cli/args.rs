@@ -115,6 +115,8 @@ pub(crate) struct CalculationArgs {
     pub z: i64,
     #[arg(long = "max-error")]
     pub max_error: Option<f64>,
+    #[arg(long = "min-time")]
+    pub min_time: Option<u64>,
     #[arg(short = 't', long = "max-time")]
     pub max_time: Option<u64>,
     #[arg(short = 'd', long = "dimension", value_parser = parse_dimension)]

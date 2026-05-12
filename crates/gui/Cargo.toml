@@ -37,8 +37,8 @@ appFolderPosition = { x = 535, y = 195 }
 windowPosition = { x = 200, y = 120 }
 
 [dependencies]
-eframe = "0.33"
-egui = "0.33"
+eframe = "0.34"
+egui = "0.34"
 egui_extras = "0.33"
 fluent-bundle = "0.16"
 fluent-syntax = "0.12"

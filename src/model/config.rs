@@ -11,6 +11,8 @@ pub struct Config {
     pub max_tnt: TNTNumRB,
     pub max_error: f64,
     pub show_first: usize,
+    #[serde(default)]
+    pub min_time: Time,
     pub max_time: Time,
 }
 

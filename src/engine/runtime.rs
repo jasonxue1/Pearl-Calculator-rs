@@ -13,7 +13,28 @@ enum Teleport {
     EndPortal,
 }
 
+#[derive(Clone, Copy)]
+enum CalculationMode {
+    Direct,
+    NetherToEnd,
+}
+
 impl Pearl {
+    fn calculation_mode(self, target_dimension: Dimension) -> Result<CalculationMode, PearlError> {
+        match (self.dimension, target_dimension) {
+            (Dimension::Nether, Dimension::Nether) | (Dimension::End, Dimension::End) => {
+                Ok(CalculationMode::Direct)
+            }
+            (Dimension::Nether, Dimension::End) => Ok(CalculationMode::NetherToEnd),
+            (start_dimension, target_dimension) => {
+                Err(PearlError::UnsupportedCalculationDimensionTransition {
+                    start_dimension,
+                    target_dimension,
+                })
+            }
+        }
+    }
+
     fn move_motion(&mut self) {
         self.position += self.motion
     }
@@ -98,52 +119,45 @@ impl Pearl {
         self,
         target_point: Vector2<i64>,
         motion_per_tnt: MotionPerTnt,
+        min_time: Time,
         max_time: Time,
         dimension: Dimension,
     ) -> Result<Vec<FtlConfig>, PearlError> {
-        let start_pos = match dimension {
-            Dimension::Nether => self.position,
-            Dimension::End => END_SPAWN_POSTION,
-            Dimension::Overworld => {
-                return Err(PearlError::UnsupportedDimension {
-                    dimension,
-                    context: "Pearl::calculation/start_pos",
-                });
-            }
+        let mode = self.calculation_mode(dimension)?;
+
+        let start_pos = match mode {
+            CalculationMode::Direct => self.position,
+            CalculationMode::NetherToEnd => END_SPAWN_POSTION,
         };
         let target_distance = start_pos.array_to(target_point.into());
 
         let mut result: Vec<FtlConfig> = Vec::new();
 
-        let start_time_iter = match dimension {
-            Dimension::Nether => Time::range(Time(0), Time(1)),
-            Dimension::End => Time::range(Time(0), max_time),
-            Dimension::Overworld => {
-                return Err(PearlError::UnsupportedDimension {
-                    dimension,
-                    context: "Pearl::calculation/start_time_iter",
-                });
-            }
+        let start_time_iter = match mode {
+            CalculationMode::Direct => Time::range(Time(0), Time(1)),
+            CalculationMode::NetherToEnd => Time::range(Time(0), max_time),
         };
 
         for start_time in start_time_iter {
-            let first_end_time = match dimension {
-                Dimension::End => start_time + 2,
-                _ => start_time + 1,
-            };
+            let first_end_time = match mode {
+                CalculationMode::Direct => start_time + 1,
+                CalculationMode::NetherToEnd => start_time + 2,
+            }
+            .max(min_time);
 
             for end_time in Time::range(first_end_time, max_time + 1) {
-                let rotate = matches!(dimension, Dimension::End);
+                let rotate = matches!(mode, CalculationMode::NetherToEnd);
                 let nums = Array::to_nums(
                     target_distance,
                     motion_per_tnt,
+                    self.motion,
                     start_time,
                     end_time,
                     rotate,
                 );
-                let to_end_time = match dimension {
-                    Dimension::End => Some(start_time + 1),
-                    _ => None,
+                let to_end_time = match mode {
+                    CalculationMode::NetherToEnd => Some(start_time + 1),
+                    CalculationMode::Direct => None,
                 };
                 result.extend(nums.iter().map(|&num| FtlConfig {
                     tnt_num: num,
@@ -154,5 +168,54 @@ impl Pearl {
         }
 
         Ok(result)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use nalgebra::vector;
+
+    fn pearl_in(dimension: Dimension) -> Pearl {
+        Pearl {
+            position: Array(vector![0.0, 0.0, 0.0]),
+            motion: Array(vector![0.0, 0.0, 0.0]),
+            yaw: Angle(0.0),
+            dimension,
+        }
+    }
+
+    #[test]
+    fn calculation_mode_supports_expected_transitions() {
+        assert!(matches!(
+            pearl_in(Dimension::Nether).calculation_mode(Dimension::Nether),
+            Ok(CalculationMode::Direct)
+        ));
+        assert!(matches!(
+            pearl_in(Dimension::Nether).calculation_mode(Dimension::End),
+            Ok(CalculationMode::NetherToEnd)
+        ));
+        assert!(matches!(
+            pearl_in(Dimension::End).calculation_mode(Dimension::End),
+            Ok(CalculationMode::Direct)
+        ));
+    }
+
+    #[test]
+    fn calculation_mode_rejects_unsupported_transitions() {
+        assert!(matches!(
+            pearl_in(Dimension::End).calculation_mode(Dimension::Nether),
+            Err(PearlError::UnsupportedCalculationDimensionTransition {
+                start_dimension: Dimension::End,
+                target_dimension: Dimension::Nether,
+            })
+        ));
+        assert!(matches!(
+            pearl_in(Dimension::Overworld).calculation_mode(Dimension::Nether),
+            Err(PearlError::UnsupportedCalculationDimensionTransition {
+                start_dimension: Dimension::Overworld,
+                target_dimension: Dimension::Nether,
+            })
+        ));
     }
 }

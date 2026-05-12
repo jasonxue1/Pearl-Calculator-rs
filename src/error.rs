@@ -25,6 +25,13 @@ pub enum PearlError {
         dimension: Dimension,
         context: &'static str,
     },
+    #[error(
+        "unsupported calculation dimension transition: {start_dimension} -> {target_dimension}"
+    )]
+    UnsupportedCalculationDimensionTransition {
+        start_dimension: Dimension,
+        target_dimension: Dimension,
+    },
     #[error("invalid --max-tnt argument count: {0} (expected 0..=2)")]
     InvalidMaxTntArgCount(usize),
     #[error("cap bit index out of range: {bit} (must be 1..={max})")]

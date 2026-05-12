@@ -22,6 +22,7 @@ pub fn calculation(
     max_tnt: Option<TNTNumRB>,
     target_point: Vector2<i64>,
     max_error: Option<f64>,
+    min_time: Option<Time>,
     max_time: Option<Time>,
     dimension: Option<Dimension>,
     show_first: Option<usize>,
@@ -32,9 +33,10 @@ pub fn calculation(
     let max_error = max_error.unwrap_or(config.max_error);
     let show_first = show_first.unwrap_or(config.show_first);
     let dimension = dimension.unwrap_or(Dimension::Nether);
+    let min_time = min_time.unwrap_or(config.min_time);
     let max_time = max_time.unwrap_or(config.max_time);
 
-    let res = pearl.calculation(target_point, motion_per_tnt, max_time, dimension)?;
+    let res = pearl.calculation(target_point, motion_per_tnt, min_time, max_time, dimension)?;
 
     let mut result = Vec::new();
     for &x in &res {
